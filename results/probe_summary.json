@@ -1,0 +1,20 @@
+{
+  "P1_clinical_auroc": {
+    "all genes": 0.748046875,
+    "A programs": 0.5888671875,
+    "R programs": 0.66162109375,
+    "A+R programs": 0.67041015625,
+    "A gene subset": 0.759765625,
+    "R gene subset": 0.75146484375,
+    "chromatin-weighted genes": 0.7646484375
+  },
+  "P3_medians": {
+    "all genes": 0.25921981230212965,
+    "A programs": 0.19832843054083432,
+    "R programs": 0.21255650562073397,
+    "A+R programs": 0.211169806717325,
+    "A gene subset": 0.27943005173948887,
+    "R gene subset": 0.2818361098514362,
+    "chromatin-weighted genes": 0.2616647594290724
+  }
+}

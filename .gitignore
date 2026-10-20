@@ -1,0 +1,28 @@
+# ---- Controlled-access patient data: never commit ----
+# Beat AML (dbGaP phs001657) is under a Data Use Certification.
+data/raw/
+data/interim/
+data/programs/
+
+# ---- Third-party code checked out locally ----
+baselines/
+
+# ---- Copyrighted material ----
+*.pdf
+data/ref/published_signatures/ng2016_raw/
+
+# ---- Internal working notes, not for release ----
+literature/
+
+# ---- Large or regenerable ----
+logs/
+*.npz
+*.parquet
+*.h5ad
+
+# ---- Manuscript: not code; public posting is a separate decision ----
+manuscript/
+
+# Archives built from this repository
+*.zip
+*.tar.gz

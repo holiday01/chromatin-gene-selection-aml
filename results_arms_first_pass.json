@@ -1,0 +1,33 @@
+{
+  "floor_rmse": 0.240111244337515,
+  "arms": [
+    {
+      "arm": "0 (no patient info)",
+      "rmse": 0.24028051916587292,
+      "bp_spearman_mean": NaN,
+      "bp_spearman_median": NaN,
+      "n_cells": 0,
+      "frac_positive": NaN
+    },
+    {
+      "arm": "R (RNA programs)",
+      "rmse": 0.24335615223579132,
+      "bp_spearman_mean": 0.1507600720493807,
+      "bp_spearman_median": 0.1421936751497323,
+      "n_cells": 903,
+      "frac_positive": 0.8516057585825028
+    },
+    {
+      "arm": "A (chromatin programs)",
+      "rmse": 0.24515275463594358,
+      "bp_spearman_mean": 0.14493659678209755,
+      "bp_spearman_median": 0.13258753049034552,
+      "n_cells": 903,
+      "frac_positive": 0.8837209302325582
+    }
+  ],
+  "n_train_points": 143388,
+  "n_test_points": 97475,
+  "n_train_specimens": 201,
+  "n_test_specimens": 133
+}

@@ -1,0 +1,11 @@
+{
+  "clinical only": 0.7344602739214807,
+  "HSC chromatin alone C=0.01": 0.7555007277205553,
+  "clinical + HSC chromatin C=0.01": 0.7573723690103,
+  "HSC RNA alone C=0.01": 0.7325303216898043,
+  "clinical + HSC RNA C=0.01": 0.7496255038065384,
+  "HSC chromatin alone C=0.1": 0.7521812957157782,
+  "clinical + HSC chromatin C=0.1": 0.742823369159576,
+  "HSC RNA alone C=0.1": 0.7236197566801016,
+  "clinical + HSC RNA C=0.1": 0.7184034930586654
+}

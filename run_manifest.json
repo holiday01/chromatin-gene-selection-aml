@@ -1,0 +1,93 @@
+{
+  "created": "2026-10-20T01:14:01",
+  "host": "hai",
+  "python": "3.11.15",
+  "python_exe": "/home/holiday01/miniconda/envs/drug_sc/bin/python",
+  "python_packages": {
+    "numpy": "2.4.3",
+    "scipy": "1.17.1",
+    "pandas": "2.3.3",
+    "sklearn": "1.8.0",
+    "anndata": "0.12.10",
+    "scanpy": "1.11.5",
+    "torch": "2.10.0+cu128",
+    "joblib": "1.5.3",
+    "statsmodels": "0.14.6",
+    "decoupler": "2.1.6",
+    "pyarrow": "23.0.1",
+    "h5py": "3.16.0",
+    "matplotlib": "3.10.8",
+    "seaborn": "0.13.2"
+  },
+  "constraints": {
+    "scikit-learn": "<1.10  (CLIFF relies on LogisticRegression(penalty=...), removed in 1.10)"
+  },
+  "baselines": {
+    "CLIFF": {
+      "repo": "github.com/drayac/CLIFF",
+      "lang": "python",
+      "input": "dose-level viability, n_dose=7",
+      "patches": [
+        "CLIFF_sklearn18_compat.patch",
+        "CLIFF_pitrue_nonecheck.patch"
+      ],
+      "smoke_test": "Pearson r=0.791 vs ground truth on bundled in-vitro example, EM converged step 39/100",
+      "status": "VERIFIED"
+    },
+    "CLIMB": {
+      "repo": "github.com/drayac/CLIMB",
+      "lang": "R",
+      "pkg": "climb",
+      "version": "1.1.2",
+      "status": "BROKEN on its own default path (S_pred_mapping_norm never initialised); kept for provenance only"
+    },
+    "ClimbTheCliff": {
+      "repo": "github.com/drayac/ClimbTheCliff",
+      "lang": "R",
+      "version": "0.0.0.9000",
+      "status": "VERIFIED - use this for deconvolution",
+      "smoke_test": "climb() on bundled in-vitro mixtures: 4.7 s, recovered proportions vs known truth Pearson r=0.948",
+      "caller_requirements": [
+        "library(glmnet)",
+        "library(reshape2)",
+        "flatten <- function(x) as.vector(x)"
+      ],
+      "cliff_input_caveat": "cliff() expects drug_data$auc in [0,1]; Beat AML AUC is 0-286 and must be rescaled"
+    },
+    "seAMLess": {
+      "repo": "github.com/eonurk/seAMLess",
+      "lang": "R",
+      "version": "0.1.2",
+      "status": "VERIFIED",
+      "requires_MuSiC": "0.1.1 at commit 60c08c7, installed in /home/holiday01/R/lib_music011 (MuSiC 1.0.0 renamed music_prop args and breaks it)",
+      "smoke_test": "seAMLess(exampleTCGA): 7 s, returns Deconvolution 20x22 and Venetoclax.resistance (0.32-0.67)",
+      "scope_limit": "published drug predictor covers venetoclax only; other drugs require reimplementing on its compositions"
+    }
+  },
+  "data": {
+    "beataml2_dir": "data/raw/beataml2",
+    "primary_subset": {
+      "specimens": 346,
+      "patients": 346,
+      "drugs_full_7point": 165,
+      "viability_rows": 250285,
+      "cohort": {
+        "Waves1+2": 201,
+        "Waves3+4": 133,
+        "Both": 12
+      },
+      "induction_response": {
+        "CR": 174,
+        "Refractory": 80,
+        "missing_or_unknown": 92
+      }
+    },
+    "interim": {
+      "specimens_dx.parquet": "346 specimens + covariates",
+      "viability.parquet": "250,285 dose-level viability rows, 165 drugs x 7 doses",
+      "dose_grid.parquet": "per-drug 7-point concentration grid",
+      "expr_norm_346.parquet": "22,843 genes x 346 (log-scale, range -8.81..14.50)",
+      "expr_counts_346.parquet": "63,677 genes x 346 raw counts (needed by MuSiC/seAMLess)"
+    }
+  }
+}
