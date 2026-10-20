@@ -1,0 +1,3 @@
+null,n_permutations,real_set_size,overlap_median,overlap_min,overlap_max,distinct_peaks_real,distinct_peaks_median
+global,20,200,17.0,11,20,39589,30635.5
+window,100,200,87.0,74,96,39589,41357.0

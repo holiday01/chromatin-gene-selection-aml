@@ -56,6 +56,11 @@ if S2 is not None:
     # the per-fold Wilcoxon columns are the statistic the paper abandoned; keeping them
     # here would put two inference methods in the same submission
     S2 = S2.drop(columns=[c for c in S2.columns if c.startswith('p_')])
+    # eval_programs.py stores the PAIRED DIFFERENCE arm A minus arm R, not either arm's
+    # own AUROC. Name the columns accordingly so the sheet cannot be read as performance.
+    S2 = S2.rename(columns={'cv_0.01': 'A_minus_R_cv_C0.01', 'cv_0.1': 'A_minus_R_cv_C0.1',
+                            'xw_0.01': 'A_minus_R_xwave_C0.01',
+                            'xw_0.1': 'A_minus_R_xwave_C0.1'})
 
 # ---- S3/S4: hyperparameter and budget sweeps -------------------------------------------
 S3, S4 = rd('sweep_programs.csv'), rd('budget_sweep.csv')
@@ -80,21 +85,44 @@ for label, tag in REFS.items():
         S5.append(r)
 S5 = pd.DataFrame(S5) if S5 else None
 
-# ---- S6: nulls and linking-free arms ----------------------------------------------------
-S6 = []
-for src, f in (('permuted links (20 perms)', 'link_permutation.json'),
-               ('permuted links, window (100 perms)', 'link_permutation_window100.json')):
+# ---- S6a: permuted-link nulls -----------------------------------------------------------
+# 'beats' in the source JSON counts permutations where the mean difference is positive AND
+# an uncorrected per-fold Wilcoxon reaches P < 0.05. That is not the corrected resampled
+# t-test this paper uses, and shipping it would put two inference methods in one
+# submission, so it is dropped here as it is in S2, S3 and S4.
+ovl = rd('permutation_overlap.csv')
+ovl = ovl.set_index('null') if ovl is not None else None
+S6a = []
+for src, f, key in (('permuted links, genome-wide pool', 'link_permutation.json', 'global'),
+                    ('permuted links, within window', 'link_permutation_window100.json', 'window')):
     j = rj(f)
-    if j:
-        for k, v in j.items(): S6.append(dict(analysis=src, setting=k, **v))
+    if not j: continue
+    for k, v in j.items():
+        if not k.startswith(key):  # the 20-perm file also carries an early window run
+            continue
+        r = dict(null=src, setting=k, n_permutations=v['n'], real_cv_AUROC=v['real_cv'],
+                 null_cv_AUROC_mean=v['null_cv_mean'], null_cv_AUROC_sd=v['null_cv_sd'],
+                 empirical_p_cv=v['emp_p'], real_xwave_AUROC=v['real_xw'],
+                 null_xwave_AUROC_mean=v['null_xw_mean'],
+                 n_perms_real_higher_xwave=v['above'])
+        if ovl is not None and key in ovl.index:
+            r.update(gene_overlap_median=ovl.loc[key, 'overlap_median'],
+                     gene_overlap_min=ovl.loc[key, 'overlap_min'],
+                     gene_overlap_max=ovl.loc[key, 'overlap_max'],
+                     distinct_peaks_real=ovl.loc[key, 'distinct_peaks_real'],
+                     distinct_peaks_permuted_median=ovl.loc[key, 'distinct_peaks_median'])
+        S6a.append(r)
+S6a = pd.DataFrame(S6a) if S6a else None
+
+# ---- S6b: linking-free locus arms -------------------------------------------------------
+S6b = []
 j = rj('locus_arm.json')
 if j:
     for arm, cv in j['cv'].items():
-        S6.append(dict(analysis='linking-free locus arms', setting=arm,
-                       overlap_with_armA=j['overlap_with_armA'][arm],
-                       **{f'cv_C{k}': v for k, v in cv.items()},
-                       **{f'xwave_C{k}': v for k, v in j['xwave'][arm].items()}))
-S6 = pd.DataFrame(S6) if S6 else None
+        S6b.append(dict(arm=arm, gene_overlap_with_armA=j['overlap_with_armA'][arm],
+                        **{f'cv_AUROC_C{k}': v for k, v in cv.items()},
+                        **{f'xwave_AUROC_C{k}': v for k, v in j['xwave'][arm].items()}))
+S6b = pd.DataFrame(S6b) if S6b else None
 
 # ---- S7: enrichment ---------------------------------------------------------------------
 S7a, S7b = rd('enrich_enrichr.csv'), rd('enrich_lsc_overlap.csv')
@@ -116,12 +144,35 @@ for label, tag in REFS.items():
         r.update({f'cv_alpha{k}': v for k, v in cv.items()})
         r.update({f'xwave_alpha{k}': v for k, v in j['xwave'][arm].items()})
         S9.append(r)
-S9 = pd.DataFrame(S9) if S9 else None
+S9a = pd.DataFrame(S9) if S9 else None
+if S9a is not None:
+    S9a = S9a.rename(columns={c: c.replace('cv_alpha', 'cv_cindex_alpha')
+                                 .replace('xwave_alpha', 'xwave_cindex_alpha')
+                              for c in S9a.columns if 'alpha' in c})
+
+# ---- S9b: the four-penalty HSC comparison the main text reports -------------------------
+# eval_os.py evaluates every programme at two penalties; the paired comparison quoted in
+# the text comes from recompute_remaining.py at four penalties and was not in this workbook.
+S9b = rd('recomputed_remaining.csv')
+if S9b is not None:
+    S9b = S9b[S9b.analysis == 'overall_survival'].drop(columns='analysis').rename(
+        columns={'C': 'alpha', 'diff': 'A_minus_R_cindex', 'nb_t': 'corrected_t',
+                 'nb_p': 'corrected_p'})
+    S9b = S9b[['reference', 'alpha', 'A_minus_R_cindex', 'corrected_t', 'corrected_p']]
 
 # ---- S10: clinical covariates and ELN2017 ------------------------------------------------
 S10 = rd('recomputed_remaining.csv')
 if S10 is not None:
-    S10 = S10[S10.analysis == 'clinical'].drop(columns='analysis')
+    S10 = S10[S10.analysis == 'clinical'].drop(columns=['analysis', 'reference'])
+    # the source 'diff' column carries an absolute AUROC on the rows that name one model
+    # and a paired increment on the rows that name a contrast; split them so neither can
+    # be read as the other
+    is_delta = S10.comparison.str.contains(' - ')
+    S10.insert(1, 'quantity', np.where(is_delta, 'delta_AUROC', 'AUROC'))
+    S10.insert(2, 'AUROC', np.where(is_delta, np.nan, S10['diff']))
+    S10.insert(3, 'delta_AUROC', np.where(is_delta, S10['diff'], np.nan))
+    S10 = S10.drop(columns='diff').rename(columns={'nb_t': 'corrected_t',
+                                                   'nb_p': 'corrected_p'})
 
 # ---- S11: the cross-programme sweep ------------------------------------------------------
 # All cells are cross-validated. Programmes share the cohort, the endpoint and the folds,
@@ -141,10 +192,12 @@ S12a = rd('cohort_flow.csv')
 S12b = rd('cohort_flow_excluded.csv')
 
 SHEETS = [('S1_gene_sets', S1), ('S2_per_program', S2), ('S3_hyperparameter_sweep', S3),
-          ('S4_budget_sweep', S4), ('S5_connectivity_audit', S5), ('S6_null_models', S6),
+          ('S4_budget_sweep', S4), ('S5_connectivity_audit', S5),
+          ('S6a_permuted_link_nulls', S6a), ('S6b_linking_free_arms', S6b),
           ('S7a_enrichment', S7a), ('S7b_LSC_overlap', S7b),
           ('S8a_Ng2016_transcribed', S8a), ('S8b_Ng2016_resolution', S8b),
-          ('S9_overall_survival', S9), ('S10_clinical_models', S10),
+          ('S9a_survival_all_programmes', S9a), ('S9b_survival_HSC_four_alphas', S9b),
+          ('S10_clinical_models', S10),
           ('S11a_programme_sweep', S11a), ('S11b_matched_programmes', S11b),
           ('S12a_inclusion_flow', S12a), ('S12b_cohort_composition', S12b)]
 path = f'{OUT}/Supporting_Information_Tables.xlsx'

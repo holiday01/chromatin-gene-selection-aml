@@ -238,5 +238,64 @@ chk('AML HSC auroc', 0.741, pa['HSC'], 6e-4)
 chk('AML best is CLP', 1, int(best == 'CLP'), 0)
 section('pass5')
 
+
+# --- sixth pass: the permutation overlap, the reference scope of each control, and the
+#     construction of the two expression-variance controls ---
+po = pd.read_csv(f'{R}/permutation_overlap.csv').set_index('null')
+chk('window overlap median', 87, float(po.loc['window', 'overlap_median']), 0)
+chk('global overlap median', 17, float(po.loc['global', 'overlap_median']), 0)
+chk('window perms', 100, int(po.loc['window', 'n_permutations']), 0)
+chk('global perms', 20, int(po.loc['global', 'n_permutations']), 0)
+chk('real distinct peaks', 39589, int(po.loc['window', 'distinct_peaks_real']), 0)
+chk('window distinct peaks', 41357, float(po.loc['window', 'distinct_peaks_median']), 1)
+chk('global distinct peaks', 30636, float(po.loc['global', 'distinct_peaks_median']), 1)
+
+# the connectivity controls ran in all three references, not the healthy one alone
+for f in ('confound_programs.json', 'confound_programs_aml_malignant_v3.json',
+          'confound_programs_aml_all_v3.json'):
+    cvk = json.load(open(f'{R}/{f}'))['cv']
+    for arm in ('peak density only', 'gene span only', 'sum_r only', 'n_links only'):
+        chk(f'{f[18:26]} has {arm[:12]}', 1, int(arm in cvk), 0)
+    chk(f'{f[18:26]} linkcount draws', 20,
+        sum(1 for k in cvk if k.startswith('linkcount-rand')), 0)
+
+# the two expression-variance controls are matched to the published set and are drawn from
+# the whole expression matrix, not from the eligible pool
+_expr = pd.read_parquet('/home/holiday01/2026_cm/data/interim/expr_norm_346.parquet')
+_spec = pd.read_parquet('/home/holiday01/2026_cm/data/interim/specimens_dx.parquet')
+_expr = _expr.drop_duplicates('display_label').set_index('display_label')
+_cols = [c for c in _expr.columns if c in set(_spec.dbgap_rnaseq_sample)]
+_X = _expr.loc[:, _cols].to_numpy(dtype=float).T
+_EX = {g: i for i, g in enumerate(_expr.index)}
+chk('expression matrix genes', 22843, _X.shape[1], 0)
+_z = np.load('/home/holiday01/2026_cm/data/programs/programs.npz', allow_pickle=True)
+_pg = _z['genes'].astype(str); _elig = set(_pg[_z['eligible']])
+chk('healthy eligible pool', 7778, len(_elig), 0)
+_rm = pd.read_csv('/home/holiday01/2026_cm/data/ref/published_signatures/ng2016_resolution_map.csv')
+_pub = np.array([_EX[g] for g in dict.fromkeys(_rm.beataml.dropna()) if g in _EX])
+chk('published resolved', 99, len(_pub), 0)
+_var = _X.var(0)
+_dec = pd.qcut(pd.Series(_var), 10, labels=False, duplicates='drop').to_numpy()
+_jH = list(_z['cell_types'].astype(str)).index('HSC')
+_s = _z['W_A'][:, _jH]
+_armA = {_pg[i] for i in np.argsort(-_s)[:99] if _s[i] > 0 and _pg[i] in _EX}
+_rng = np.random.default_rng(11)
+_need = pd.Series(_dec[_pub]).value_counts().to_dict()
+_inv = {i: g for g, i in _EX.items()}
+_off, _ov = [], []
+for _ in range(20):          # mirrors baseline_lsc104.py exactly, same seed and order
+    _pick = []
+    for d, k in _need.items():
+        _pool = np.setdiff1d(np.flatnonzero(_dec == d), _pub)
+        _pick.append(_rng.choice(_pool, min(k, len(_pool)), replace=False))
+    _nm = {_inv[j] for j in np.concatenate(_pick)}
+    _off.append(len(_nm - _elig)); _ov.append(len(_nm & _armA))
+chk('var draws outside pool min', 65, min(_off), 0)
+chk('var draws outside pool max', 79, max(_off), 0)
+chk('var draws armA overlap min', 0, min(_ov), 0)
+chk('var draws armA overlap max', 3, max(_ov), 0)
+chk('top99 variance in pool', 16, len({_inv[j] for j in np.argsort(-_var)[:99]} & _elig), 0)
+section('pass6')
+
 print(f'\ntotal: {len(ALL)} mismatch across all sections')
 sys.exit(1 if ALL else 0)
