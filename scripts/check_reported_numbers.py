@@ -136,5 +136,40 @@ for lbl,base,comp,c,v in [('panel+chrom auroc .01','standard panel alone','stand
 print(f'pass3: {len(BAD)} mismatch')
 for l,c,aa in BAD: print(f'  {l:26s} manuscript={c} source={aa}')
 
+
+# --- fourth pass: the HSC rank claim and the two nested AML constructions ---
+BAD.clear()
+def hsc_rank(f, split, C):
+    j = json.load(open(f'{R}/{f}'))[split]
+    A = {k[8:]: v[C] for k, v in j.items() if k.startswith('prog-A: ')}
+    s = sorted(A.items(), key=lambda kv: -kv[1])
+    return [i + 1 for i, (k, _) in enumerate(s) if k == 'HSC'][0], len(s)
+RANKS = {'eval_programs.json': ((1, 2), (1, 3), 22),
+         'eval_programs_aml_malignant_v3.json': ((6, 7), (5, 4), 18),
+         'eval_programs_aml_all_v3.json': ((7, 7), (2, 3), 20)}
+aml_ranks = []
+for f, (cv, xw, n) in RANKS.items():
+    for split, exp in (('cv', cv), ('xwave', xw)):
+        for C, e in zip(('0.01', '0.1'), exp):
+            r, tot = hsc_rank(f, split, C)
+            chk(f'{f[:18]} {split} {C} rank', e, r, 0); chk(f'{f[:18]} n', n, tot, 0)
+            if 'aml' in f: aml_ranks.append(r)
+chk('AML rank range low', 2, min(aml_ranks), 0)
+chk('AML rank range high', 7, max(aml_ranks), 0)
+zm = np.load('/home/holiday01/2026_cm/data/programs/programs_aml_malignant_v3.npz', allow_pickle=True)
+za = np.load('/home/holiday01/2026_cm/data/programs/programs_aml_all_v3.npz', allow_pickle=True)
+ctm, cta = set(zm['cell_types'].astype(str)), set(za['cell_types'].astype(str))
+chk('shared cell types', 18, len(ctm & cta), 0)
+gm, ga = zm['genes'].astype(str), za['genes'].astype(str)
+em, ea = set(gm[zm['eligible']]), set(ga[za['eligible']])
+chk('shared eligible', 7047, len(em & ea), 0)
+chk('pct smaller', 0.86, len(em & ea) / min(len(em), len(ea)), 5e-3)
+chk('pct larger', 0.78, len(em & ea) / max(len(em), len(ea)), 5e-3)
+jm = list(zm['cell_types'].astype(str)).index('HSC'); ja = list(za['cell_types'].astype(str)).index('HSC')
+chk('shared HSC arm A', 104,
+    len(set(gm[np.flatnonzero(zm['W_A'][:, jm])]) & set(ga[np.flatnonzero(za['W_A'][:, ja])])), 0)
+print(f'pass4: {len(BAD)} mismatch')
+for l, c, aa in BAD: print(f'  {l:34s} manuscript={c} source={aa}')
+
 import sys
 sys.exit(1 if BAD else 0)

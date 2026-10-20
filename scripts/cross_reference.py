@@ -21,7 +21,7 @@ PAIRS = [('HSC', 'HSC'), ('G/M prog', 'GMP'), ('ID2-hi myeloid prog', 'Progenito
          ('pDC', 'pDC'), ('cDC2', 'cDC')]
 
 B = pd.read_csv(f'{ROOT}/results/per_program.csv')          # BMMC, from per_program.py
-A = pd.read_csv(f'{ROOT}/results/eval_programs_aml_malignant_per_program.csv')
+A = pd.read_csv(f'{ROOT}/results/eval_programs_aml_malignant_v3_per_program.csv')
 print(f'BMMC programs {len(B)} | AML programs {len(A)} | matched pairs {len(PAIRS)}')
 
 print('\naggregate: is chromatin wiring better than RNA wiring on average over programs?')

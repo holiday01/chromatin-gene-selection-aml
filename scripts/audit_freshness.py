@@ -16,16 +16,34 @@ def mt(p):
 newest_aml = max(mt(f'{ROOT}/data/programs/{k}') or 0
                  for k in REFS if k != 'programs.npz')
 print(f'newest AML reference: {time.strftime("%H:%M", time.localtime(newest_aml))}\n')
+# Map each result file to the script that WRITES it. Matching on any mention picks the
+# wrong script, because the checking scripts name every output they read.
+WRITE = re.compile(r'to_csv|to_excel|json\.dump|ExcelWriter|savefig|savetxt')
+NAME = re.compile(r'results/([A-Za-z0-9_.-]+\.(?:csv|json))')
+writers, reads = {}, {}
+for s in sorted(glob.glob(f'{ROOT}/scripts/*.py')):
+    b = os.path.basename(s)
+    for line in open(s).read().splitlines():
+        hits = [m.group(1) for m in NAME.finditer(line)]
+        if not hits: continue
+        if WRITE.search(line):
+            for h in hits: writers.setdefault(h, b)
+        else:
+            reads.setdefault(b, set()).update(hits)
+
+def aml_dep(script, seen=()):
+    # a script depends on an AML reference if it loads one, or reads a result that does
+    if script in seen or not os.path.exists(f'{ROOT}/scripts/{script}'): return False
+    if re.search(r'programs_aml', open(f'{ROOT}/scripts/{script}').read()): return True
+    return any(aml_dep(writers[r], seen + (script,))
+               for r in reads.get(script, ()) if r in writers)
+
 rows = []
 # _superseded holds outputs from earlier reference versions, kept for the record
 for f in sorted(glob.glob(f'{ROOT}/results/*.csv') + glob.glob(f'{ROOT}/results/*.json')):
     base = os.path.basename(f)
-    src = None
-    for s in glob.glob(f'{ROOT}/scripts/*.py'):
-        txt = open(s).read()
-        if base.replace('.csv', '').replace('.json', '') in txt and 'results/' in txt:
-            src = os.path.basename(s); break
-    uses_aml = bool(src and re.search(r'programs_aml', open(f'{ROOT}/scripts/{src}').read()))
+    src = writers.get(base)
+    uses_aml = bool(src and aml_dep(src))
     t = mt(f)
     stale = uses_aml and t < newest_aml
     rows.append((base, src or '?', 'AML+healthy' if uses_aml else 'healthy only',
