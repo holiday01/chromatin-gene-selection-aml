@@ -123,11 +123,25 @@ S10 = rd('recomputed_remaining.csv')
 if S10 is not None:
     S10 = S10[S10.analysis == 'clinical'].drop(columns='analysis')
 
+# ---- S11: the cross-programme sweep ------------------------------------------------------
+# All cells are cross-validated. Programmes share the cohort, the endpoint and the folds,
+# so the aggregate tests are descriptive and the pairing is by cell identity alone.
+S11a = rd('cross_reference_aggregate.csv')
+S11b = rd('cross_reference_programs.csv')
+if S11b is not None:
+    S11b = S11b.rename(columns={
+        'bmmc': 'healthy_programme', 'aml': 'malignant_programme',
+        'b001': 'healthy_A_minus_R_C0.01', 'a001': 'malignant_A_minus_R_C0.01',
+        'b01': 'healthy_A_minus_R_C0.1', 'a01': 'malignant_A_minus_R_C0.1',
+        'mean4': 'mean_over_four_cv_cells', 'allpos': 'positive_in_all_four',
+        'stem': 'myeloid_stem_progenitor'})
+
 SHEETS = [('S1_gene_sets', S1), ('S2_per_program', S2), ('S3_hyperparameter_sweep', S3),
           ('S4_budget_sweep', S4), ('S5_connectivity_audit', S5), ('S6_null_models', S6),
           ('S7a_enrichment', S7a), ('S7b_LSC_overlap', S7b),
           ('S8a_Ng2016_transcribed', S8a), ('S8b_Ng2016_resolution', S8b),
-          ('S9_overall_survival', S9), ('S10_clinical_models', S10)]
+          ('S9_overall_survival', S9), ('S10_clinical_models', S10),
+          ('S11a_programme_sweep', S11a), ('S11b_matched_programmes', S11b)]
 path = f'{OUT}/Supporting_Information_Tables.xlsx'
 with pd.ExcelWriter(path, engine='openpyxl') as w:
     for name, df in SHEETS:

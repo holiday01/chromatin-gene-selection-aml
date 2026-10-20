@@ -61,11 +61,14 @@ data/ref/                   included here
    inference and patient-level bootstrap
 7. Controls: `budget_sweep.py`, `baseline_lsc17.py`, `baseline_lsc104.py`,
    `confound_audit.py`, `link_permutation.py`, `locus_arm.py`, `distributed_test.py`,
-   `state_vs_abundance.py`, `clinical_adjust.py`, `eval_os.py`
+   `state_vs_abundance.py`, `clinical_adjust.py`, `eval_os.py`, `cohort_flow.py`,
+   `cross_reference.py`
 8. `recompute_pvalues.py`, `recompute_remaining.py` — all paired comparisons on one
    inferential footing, including the clinical and ELN 2017 two-stage models
 9. `make_tables.py`, `make_figures.py`, `build_supplementary.py` — outputs
 10. `collect_numbers.py`, `check_reported_numbers.py` — the reported values and their check
+11. `audit_freshness.py` — every result's producer and whether it predates the newest
+    reference rebuild
 
 ## Inference
 
@@ -82,8 +85,18 @@ Models that combine a gene set with clinical covariates are fitted in two stages
 fold. The gene score entering the second stage is out-of-fold within the training partition,
 from a further stratified 5-fold split, so no patient contributes a score fitted on itself.
 
+The comparison is also run in every programme of the healthy and malignant-cell references
+(`cross_reference.py`). Programmes share the cohort, the endpoint and the folds and their
+gene sets overlap, so the sign test and Wilcoxon signed-rank test over programmes are
+descriptive, every cell there is cross-validated, and no binomial null treating the cells as
+independent is computed.
+
 `check_reported_numbers.py` asserts every value the manuscript quotes against the files that
-produced it and exits non-zero on a mismatch; `collect_numbers.py` lists them.
+produced it. Mismatches from all sections are accumulated into the exit code, and a missing
+or non-finite value counts as a mismatch. `collect_numbers.py` lists the values.
+`audit_freshness.py` finds each result's producer by parsing the write calls of every script,
+so paths built from f-strings resolve, and reports a result whose producer it cannot identify
+as UNVERIFIED rather than passing it as independent of the AML references.
 
 ## Environment
 

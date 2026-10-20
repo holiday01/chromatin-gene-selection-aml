@@ -70,6 +70,37 @@ if dt is not None:
     for sz in sorted(dt['size'].unique()):
         s=dt[dt['size']==sz]
         row('R5',f'subset k={sz}', ' | '.join(f"{r.arm} {r['cv_0.01']:.3f}" for _,r in s.iterrows() if not r.arm.startswith('var')))
+xa=C('cross_reference_aggregate.csv'); xp=C('cross_reference_programs.csv')
+if xa is not None:
+    for _,r in xa.iterrows():
+        row('R-prog',f'{r.cell} sweep',
+            f"positive {int(r.positive)}/{int(r.n)}, mean {r['mean']:+.4f}, "
+            f"sign p={r.sign_p:.3g}, Wilcoxon p={r.wilcoxon_p:.3g}")
+if xp is not None:
+    from scipy.stats import spearmanr
+    row('R-prog','matched programmes',f'{len(xp)}')
+    row('R-prog','rank agreement',
+        f'Spearman rho {spearmanr(xp.b001,xp.a001).statistic:+.3f} (C=0.01), '
+        f'{spearmanr(xp.b01,xp.a01).statistic:+.3f} (C=0.1)')
+    row('R-prog','sign agreement',
+        f"{int(((xp.b001>0)==(xp.a001>0)).sum())}/{len(xp)} (C=0.01), "
+        f"{int(((xp.b01>0)==(xp.a01>0)).sum())}/{len(xp)} (C=0.1)")
+    row('R-prog','stem/progenitor vs rest',
+        f"{xp[xp.stem].mean4.mean():+.4f} (n={int(xp.stem.sum())}) vs "
+        f"{xp[~xp.stem].mean4.mean():+.4f} (n={int((~xp.stem).sum())}), "
+        f"gap {xp[xp.stem].mean4.mean()-xp[~xp.stem].mean4.mean():+.4f}")
+    row('R-prog','positive in all four CV cells',
+        f"{int(xp.allpos.sum())}/{len(xp)}; stem {int(xp[xp.stem].allpos.sum())}/"
+        f"{int(xp.stem.sum())}, rest {int(xp[~xp.stem].allpos.sum())}/{int((~xp.stem).sum())}")
+cfl=C('cohort_flow.csv'); cex=C('cohort_flow_excluded.csv')
+if cfl is not None:
+    row('M1','inclusion flow',' -> '.join(str(int(n)) for n in cfl.n))
+if cex is not None:
+    e=cex.set_index('group')
+    row('M1','drug-QC exclusion',
+        f"removed {int(e.loc['excluded','n'])}; refractory fraction "
+        f"{e.loc['excluded','refractory_rate']:.3f} vs {e.loc['retained','refractory_rate']:.3f}; "
+        f"median age {e.loc['excluded','median_age']:.1f} vs {e.loc['retained','median_age']:.1f}")
 D=pd.DataFrame(out)
 D.to_csv(f'{R}/reported_numbers.csv',index=False)
 pd.set_option('display.max_rows',300,'display.width',200,'display.max_colwidth',90)

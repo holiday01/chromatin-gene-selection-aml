@@ -89,3 +89,14 @@ R5,subset k=50,top-k 0.724 | bottom-k 0.695 | random-in-A 0.736 | random-in-pool
 R5,subset k=100,top-k 0.774 | bottom-k 0.731 | random-in-A 0.757 | random-in-pool 0.697
 R5,subset k=150,top-k 0.783 | bottom-k 0.756 | random-in-A 0.761 | random-in-pool 0.704
 R5,subset k=200,top-k 0.773 | random-in-A 0.773 | random-in-pool 0.718
+R-prog,BMMC C=0.01 sweep,"positive 12/22, mean -0.0011, sign p=0.832, Wilcoxon p=0.775"
+R-prog,BMMC C=0.1 sweep,"positive 12/22, mean +0.0047, sign p=0.832, Wilcoxon p=0.443"
+R-prog,AML-mal C=0.01 sweep,"positive 13/18, mean +0.0252, sign p=0.0963, Wilcoxon p=0.012"
+R-prog,AML-mal C=0.1 sweep,"positive 13/18, mean +0.0314, sign p=0.0963, Wilcoxon p=0.0104"
+R-prog,matched programmes,17
+R-prog,rank agreement,"Spearman rho -0.147 (C=0.01), +0.066 (C=0.1)"
+R-prog,sign agreement,"6/17 (C=0.01), 7/17 (C=0.1)"
+R-prog,stem/progenitor vs rest,"+0.0412 (n=3) vs +0.0089 (n=14), gap +0.0323"
+R-prog,positive in all four CV cells,"4/17; stem 3/3, rest 1/14"
+M1,inclusion flow,580 -> 458 -> 450 -> 346
+M1,drug-QC exclusion,removed 104; refractory fraction 0.307 vs 0.315; median age 62.5 vs 61.0
