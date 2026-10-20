@@ -35,7 +35,7 @@ EX = {g: i for i, g in enumerate(expr.index)}
 folds = list(RepeatedStratifiedKFold(n_splits=NSPLIT, n_repeats=NREP, random_state=0)
              .split(np.zeros((okm.sum(), 1)), y))
 n_tr, n_te = okm.sum()*(NSPLIT-1)/NSPLIT, okm.sum()/NSPLIT
-CORR = (1.0/NREP) + (n_te/n_tr)
+# CORR removed: the correction is now computed inside nb() from the fold count
 
 def run(sel):
     Mw = XF[:, sel]; M = Mw[okm]; out = {}
@@ -51,12 +51,13 @@ def run(sel):
         out[C] = (np.array(cv), roc_auc_score(yall[te], dv), dv)
     return out
 
-def nb(d):
-    pr_ = d.reshape(NREP, NSPLIT).mean(1)
-    m, v = pr_.mean(), pr_.var(ddof=1)
-    se = np.sqrt(v*CORR)
-    t = m/se if se > 0 else np.nan
-    return m, t, (2*stats.t.sf(abs(t), df=NREP-1) if np.isfinite(t) else np.nan)
+def nb(d, n_tr, n_te):
+    """Corrected resampled t-test on the individual fold differences; see
+    robustness_check.py for why the per-repeat-mean variant was abandoned."""
+    d=np.asarray(d).ravel(); m,v=d.mean(),d.var(ddof=1)
+    se=np.sqrt(v*((1.0/len(d))+(n_te/n_tr)))
+    t=m/se if se>0 else np.nan
+    return m,t,(2*stats.t.sf(abs(t),df=len(d)-1) if np.isfinite(t) else np.nan)
 
 rng = np.random.default_rng(5); yte = yall[te]
 def boot(dvA, dvB):
@@ -116,7 +117,7 @@ print(f'{"comparison":34s}{"C":>7s}{"CV diff":>10s}{"NB t":>8s}{"NB p":>9s}{"xwa
 for a, b in PAIRS:
     for C in C_GRID:
         d = R[a][C][0] - R[b][C][0]
-        m, t, p = nb(d)
+        m, t, p = nb(d, n_tr, n_te)
         bm, bci = boot(R[a][C][2], R[b][C][2])
         xw = R[a][C][1] - R[b][C][1]
         print(f'{a+" vs "+b:34s}{C:7g}{m:+10.4f}{t:+8.2f}{p:9.4f}{xw:+9.4f}'

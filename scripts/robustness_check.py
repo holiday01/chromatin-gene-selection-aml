@@ -27,7 +27,7 @@ warnings.filterwarnings('ignore')
 ROOT = '/home/holiday01/2026_cm'
 C_GRID = [1e-3, 1e-2, 1e-1, 1.0]
 NSPLIT, NREP, TOP_M, NBOOT = 5, 20, 200, 2000
-REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant', 'AML-all': 'programs_aml_all'}
+REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant_v2', 'AML-all': 'programs_aml_all_v2'}
 
 expr = pd.read_parquet(f'{ROOT}/data/interim/expr_norm_346.parquet')
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
@@ -62,14 +62,23 @@ def fold_scores(sel):
     return out
 
 def nadeau_bengio(d_folds, n_tr, n_te):
-    """corrected t on per-repeat means; variance inflated by (1/k + n_test/n_train)"""
-    per_rep = d_folds.reshape(NREP, NSPLIT).mean(1)
-    m = per_rep.mean(); v = per_rep.var(ddof=1)
-    corr = (1.0 / NREP) + (n_te / n_tr)
+    """Corrected resampled t-test for repeated k-fold cross-validation.
+
+    Uses the individual fold differences with the variance inflated by
+    1/(k*r) + n_test/n_train (Nadeau & Bengio 2003; Bouckaert & Frank 2004), which is the
+    form used for repeated k-fold designs. An earlier version of this code averaged the
+    folds within each repeat and then applied 1/r + n_test/n_train to the variance of those
+    r means; that variant has no derivation behind it and understates the uncertainty,
+    because averaging within a repeat removes the fold-to-fold variation that the
+    correction term is meant to account for.
+    """
+    d = np.asarray(d_folds).ravel()
+    m, v = d.mean(), d.var(ddof=1)
+    corr = (1.0 / len(d)) + (n_te / n_tr)
     se = np.sqrt(v * corr) if v > 0 else np.nan
     t = m / se if se and np.isfinite(se) and se > 0 else np.nan
-    p = 2 * stats.t.sf(abs(t), df=NREP - 1) if np.isfinite(t) else np.nan
-    return m, per_rep, t, p
+    p = 2 * stats.t.sf(abs(t), df=len(d) - 1) if np.isfinite(t) else np.nan
+    return m, d, t, p
 
 def boot_xwave(dvA, dvR, yte, rng, n=NBOOT):
     """patient-level bootstrap of the paired cross-wave AUROC difference"""

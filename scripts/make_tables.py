@@ -1,6 +1,8 @@
 """Table 1 (cohort) and Table 2 (enrichment, arm A beside arm R)."""
 import numpy as np, pandas as pd, json
 from scipy import stats
+from lifelines import KaplanMeierFitter
+from lifelines.statistics import logrank_test
 ROOT='/home/holiday01/2026_cm'
 spec=pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
 cl=pd.read_excel(f'{ROOT}/data/raw/beataml2/beataml_wv1to4_clinical.xlsx').drop_duplicates('dbgap_rnaseq_sample').set_index('dbgap_rnaseq_sample')
@@ -38,14 +40,33 @@ add('FLT3-ITD positive',lambda g: cat(g,'flt3','positive'))
 add('NPM1 positive',lambda g: cat(g,'npm1','positive'))
 add('Waves 1–2 / 3–4 / both',lambda g: ' / '.join(str(int((g.wave==w).sum())) for w in ['Waves1+2','Waves3+4','Both']))
 add('Deaths',lambda g: f'{int(g.dead.sum())} ({100*g.dead.mean():.0f}%)')
-add('Median overall survival, days',lambda g: cont(g,'os',0))
+def km_median(g):
+    """Kaplan-Meier median with its 95% interval; the raw median of the follow-up column
+    ignores censoring and is not a survival estimate."""
+    d=g.dropna(subset=['os'])
+    d=d[d.os>0]
+    if len(d)<5: return '--'
+    k=KaplanMeierFitter().fit(d.os, d.dead.astype(int))
+    m=k.median_survival_time_
+    try:
+        ci=k.confidence_interval_
+        from lifelines.utils import median_survival_times
+        lo,hi=median_survival_times(ci).values[0]
+    except Exception: lo=hi=np.nan
+    lo='' if not np.isfinite(lo) else f'{lo:.0f}'
+    hi='NR' if not np.isfinite(hi) else f'{hi:.0f}'
+    return f'{m:.0f} ({lo}--{hi})' if np.isfinite(m) else 'not reached'
+add('Median overall survival, days (Kaplan-Meier)',km_median)
 T1=pd.DataFrame(rows)
 # p values, CR vs refractory
 cr,rf=D[D.resp=='CR'],D[D.resp=='Refractory']
 pv={'Age at diagnosis, years':stats.mannwhitneyu(cr.age.dropna(),rf.age.dropna()).pvalue,
     'Bone-marrow blasts, %':stats.mannwhitneyu(cr.blast_bm.dropna(),rf.blast_bm.dropna()).pvalue,
     'White cell count, ×10⁹/L':stats.mannwhitneyu(cr.wbc.dropna(),rf.wbc.dropna()).pvalue,
-    'Median overall survival, days':stats.mannwhitneyu(cr.os.dropna(),rf.os.dropna()).pvalue}
+    }
+_c=cr.dropna(subset=['os']); _r=rf.dropna(subset=['os'])
+_lr=logrank_test(_c.os,_r.os,_c.dead.astype(int),_r.dead.astype(int))
+pv['Median overall survival, days (Kaplan-Meier)']=_lr.p_value
 for c,v in [('Female','sex'),('FLT3-ITD positive','flt3'),('NPM1 positive','npm1')]:
     tgt={'sex':'Female','flt3':'positive','npm1':'positive'}[v]
     tab=[[(cr[v]==tgt).sum(),(cr[v].notna()&(cr[v]!=tgt)).sum()],

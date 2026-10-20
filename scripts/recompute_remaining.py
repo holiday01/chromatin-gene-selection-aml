@@ -20,12 +20,14 @@ from sksurv.util import Surv
 from scipy import stats
 warnings.filterwarnings('ignore')
 ROOT='/home/holiday01/2026_cm'; NSPLIT,NREP=5,20
-REFS={'BMMC':'programs','AML-mal':'programs_aml_malignant','AML-all':'programs_aml_all'}
+REFS={'BMMC':'programs','AML-mal':'programs_aml_malignant_v2','AML-all':'programs_aml_all_v2'}
 def nb(d, n_tr, n_te):
-    pr_=np.asarray(d).reshape(NREP,NSPLIT).mean(1); m,v=pr_.mean(),pr_.var(ddof=1)
-    se=np.sqrt(v*((1.0/NREP)+(n_te/n_tr)))
+    """Corrected resampled t-test on the individual fold differences; see
+    robustness_check.py for why the per-repeat-mean variant was abandoned."""
+    d=np.asarray(d).ravel(); m,v=d.mean(),d.var(ddof=1)
+    se=np.sqrt(v*((1.0/len(d))+(n_te/n_tr)))
     t=m/se if se>0 else np.nan
-    return m,t,(2*stats.t.sf(abs(t),df=NREP-1) if np.isfinite(t) else np.nan)
+    return m,t,(2*stats.t.sf(abs(t),df=len(d)-1) if np.isfinite(t) else np.nan)
 
 expr=pd.read_parquet(f'{ROOT}/data/interim/expr_norm_346.parquet')
 spec=pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')

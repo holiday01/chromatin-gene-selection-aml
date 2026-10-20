@@ -70,8 +70,12 @@ Upk['mid'] = (Upk.start + Upk.end) // 2
 Upk = Upk.sort_values(['chrom', 'mid'], kind='mergesort').reset_index(drop=True)
 Upk['ui'] = np.arange(len(Upk))
 print(f'  union peaks: {len(Upk):,} (from {len(U):,} sample peaks)', flush=True)
+Upk = Upk.sort_values(['chrom', 'start'], kind='mergesort').reset_index(drop=True)
+Upk['ui'] = np.arange(len(Upk))
 chrom_slice = {c: (g.index[0], g.index[-1] + 1) for c, g in Upk.groupby('chrom', sort=False)}
 umid = Upk.mid.values
+ustart, uend = Upk.start.values, Upk.end.values
+UNMAPPED = [0]
 
 # ---------- metacell assignment, shared by both modalities ----------
 rows = []
@@ -84,6 +88,17 @@ MD = pd.concat(rows, ignore_index=True)
 if CELLS == 'malignant':
     MD = MD[MD.Malignant == 'Malignant']
 MD = MD[MD.Linked_scRNA_barcode.notna()]
+# The ATAC samples are restricted to diagnosis, but Linked_scRNA_Sample can point at a
+# relapse or remission library; 16% of malignant diagnosis ATAC cells do. Apply the same
+# timepoint restriction to the RNA side so that both modalities describe diagnosis.
+_n0 = len(MD)
+MD = MD[MD.Linked_scRNA_Sample.astype(str).str.endswith('_DX')]
+print(f'  linked RNA restricted to diagnosis: dropped {_n0 - len(MD):,} of {_n0:,} cells '
+      f'({100*(_n0-len(MD))/max(_n0,1):.1f}%)', flush=True)
+_key = MD.Linked_scRNA_Sample.astype(str) + '|' + MD.Linked_scRNA_barcode.astype(str)
+_vc = _key.value_counts()
+print(f'  cross-modal assignment is many-to-one: {len(MD):,} ATAC cells -> {_vc.size:,} '
+      f'distinct RNA cells (max reuse {_vc.max()}, median {int(_vc.median())})', flush=True)
 MD['mckey'] = MD.Classified_Celltype.astype(str) + '||' + MD.Library_ID.astype(str)
 cnt = MD.mckey.value_counts()
 MD = MD[MD.mckey.isin(cnt[cnt >= MIN_CELLS].index)]
@@ -109,18 +124,22 @@ def atac_one(s):
     sel = sp.csr_matrix((np.ones(len(cidx)), (cidx, gidx)), shape=(nc, len(mckeys)))
     PB = (A @ sel).tocoo()                              # sample peaks x metacells
     pk = rd(s['peaks'], usecols=['seqnames', 'start', 'end'])
-    pmid = ((pk.start + pk.end) // 2).values
     ui = np.full(len(pk), -1, np.int64)
     for chrom, g in pk.groupby('seqnames', sort=False):
         if chrom not in chrom_slice: continue
         lo, hi = chrom_slice[chrom]
-        pos = np.searchsorted(umid[lo:hi], pmid[g.index.values])
-        pos = np.clip(pos, 0, hi - lo - 1)
-        # nearest union midpoint; union intervals contain the sample peak by construction
-        left = np.clip(pos - 1, 0, hi - lo - 1)
-        pick = np.where(np.abs(umid[lo:hi][left] - pmid[g.index.values]) <=
-                        np.abs(umid[lo:hi][pos] - pmid[g.index.values]), left, pos)
-        ui[g.index.values] = lo + pick
+        gs, ge = g.start.values, g.end.values
+        # the union set is built by merging overlapping sample peaks, so each sample peak
+        # lies inside exactly one union interval. Take the last interval whose start is at
+        # or before the peak start, then require that it also covers the peak end. Choosing
+        # the nearest union MIDPOINT instead maps 3.2% of peaks into an interval that does
+        # not contain them, because union intervals differ in width.
+        cand = np.searchsorted(ustart[lo:hi], gs, side='right') - 1
+        okc = cand >= 0
+        idx = lo + np.clip(cand, 0, hi - lo - 1)
+        covered = okc & (ustart[idx] <= gs) & (uend[idx] >= ge)
+        ui[g.index.values[covered]] = idx[covered]
+        UNMAPPED[0] += int((~covered).sum())
     ok = (PB.row < len(ui)) & (ui[PB.row] >= 0)
     return sp.coo_matrix((PB.data[ok], (ui[PB.row[ok]], PB.col[ok])),
                          shape=(len(Upk), len(mckeys))).tocsr()
@@ -152,6 +171,7 @@ if __name__ == '__main__':
     for q in parts:
         if q is None: continue
         Pm_raw = q if Pm_raw is None else Pm_raw + q
+    print(f'  sample peaks with no containing union interval: {UNMAPPED[0]:,}', flush=True)
     print(f'  union peak x metacell matrix {Pm_raw.shape}, nnz {Pm_raw.nnz:,}', flush=True)
 
     print('reading RNA matrices ...', flush=True)

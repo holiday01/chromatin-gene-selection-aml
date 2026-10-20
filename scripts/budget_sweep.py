@@ -20,7 +20,7 @@ warnings.filterwarnings('ignore')
 ROOT = '/home/holiday01/2026_cm'
 C_GRID = [1e-2, 1e-1]
 KS = [10, 17, 25, 40, 60, 100, 150, 200]
-REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant', 'AML-all': 'programs_aml_all'}
+REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant_v2', 'AML-all': 'programs_aml_all_v2'}
 
 expr = pd.read_parquet(f'{ROOT}/data/interim/expr_norm_346.parquet')
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')

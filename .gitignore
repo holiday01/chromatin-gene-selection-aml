@@ -26,3 +26,6 @@ manuscript/
 # Archives built from this repository
 *.zip
 *.tar.gz
+
+# ---- Review correspondence: not for public release before acceptance ----
+reviews/

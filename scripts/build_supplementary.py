@@ -10,8 +10,8 @@ ROOT = '/home/holiday01/2026_cm'
 OUT  = f'{ROOT}/manuscript/supplementary'
 os.makedirs(OUT, exist_ok=True)
 REFS = {'BMMC (healthy marrow)': 'programs',  # note: eval/OS outputs for this one are tagged 'programs_bmmc' / 'programs'
-        'AML malignant': 'programs_aml_malignant',
-        'AML all cells': 'programs_aml_all'}
+        'AML malignant': 'programs_aml_malignant_v2',
+        'AML all cells': 'programs_aml_all_v2'}
 LSC104 = {l.strip() for l in open(f'{ROOT}/data/ref/published_signatures/ng2016_lsc104_resolved.txt') if l.strip()}
 LSC17  = {l.strip() for l in open(f'{ROOT}/data/ref/published_signatures/ng2016_lsc17.txt') if l.strip()}
 ALIAS  = {'LOC284422': 'C19orf77'}
@@ -50,6 +50,10 @@ for label, tag in REFS.items():
     d = rd(f'eval_{t2}_per_program.csv')
     if d is not None: d.insert(0, 'reference', label); S2.append(d)
 S2 = pd.concat(S2, ignore_index=True) if S2 else None
+if S2 is not None:
+    # the per-fold Wilcoxon columns are the statistic the paper abandoned; keeping them
+    # here would put two inference methods in the same submission
+    S2 = S2.drop(columns=[c for c in S2.columns if c.startswith('p_')])
 
 # ---- S3/S4: hyperparameter and budget sweeps -------------------------------------------
 S3, S4 = rd('sweep_programs.csv'), rd('budget_sweep.csv')
