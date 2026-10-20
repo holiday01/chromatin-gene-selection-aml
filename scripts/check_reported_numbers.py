@@ -175,13 +175,25 @@ for st, v in [('initial diagnosis records', 580), ('naming an RNA-seq sample', 4
               ('present in the expression matrix', 450),
               ('with an inhibitor over a complete dose series', 346)]:
     chk(f'flow {st[:22]}', v, int(fl.loc[st]), 0)
-ex = pd.read_csv(f'{R}/cohort_flow_excluded.csv').set_index('group')
-chk('excluded n', 104, int(ex.loc['excluded', 'n']), 0)
-chk('excluded labelled', 75, int(ex.loc['excluded', 'labelled']), 0)
-chk('excluded refr rate', 0.307, float(ex.loc['excluded', 'refractory_rate']), 1e-3)
-chk('retained refr rate', 0.315, float(ex.loc['retained', 'refractory_rate']), 1e-3)
-chk('excluded median age', 62.5, float(ex.loc['excluded', 'median_age']), 0.05)
-chk('retained median age', 61, float(ex.loc['retained', 'median_age']), 0.05)
+ex = pd.read_csv(f'{R}/cohort_flow_excluded.csv').set_index('variable')
+def EX(var, group):
+    return str(ex.loc[var, group])
+for var, g, want in [
+        ('specimens', 'excluded', '104'), ('specimens', 'retained', '346'),
+        ('refractory', 'excluded', '23/75 (30.7%)'), ('refractory', 'retained', '80/254 (31.5%)'),
+        ('age at diagnosis, years, median (IQR)', 'excluded', '62.5 (51.0 to 69.5)'),
+        ('age at diagnosis, years, median (IQR)', 'retained', '61.0 (44.0 to 70.0)'),
+        ('bone-marrow aspirate', 'excluded', '65/104 (62.5%)'),
+        ('bone-marrow aspirate', 'retained', '208/346 (60.1%)'),
+        ('ELN 2017 adverse', 'excluded', '36/75 (48.0%)'),
+        ('ELN 2017 adverse', 'retained', '83/254 (32.7%)'),
+        ('collection waves 1 and 2', 'excluded', '61/75 (81.3%)'),
+        ('collection waves 1 and 2', 'retained', '150/254 (59.1%)'),
+        ('induction recorded as standard chemotherapy', 'retained', '249/254 (98.0%)')]:
+    chk(f'cohort {var[:20]} {g}', 1, int(EX(var, g) == want), 0)
+rg = pd.read_csv(f'{R}/cohort_regimens.csv').set_index('item').value
+chk('distinct first regimens', 60, int(rg.loc['distinct first regimen entries']), 0)
+chk('7+3 or 3+7 regimens', 108, int(rg.loc['first entry is 7+3 or 3+7']), 0)
 
 lk = rr[(rr.analysis == 'link_count') & (rr.reference != 'BMMC')]
 chk('link count max gap', 0.0132, float(lk['diff'].abs().max()), 6e-4)

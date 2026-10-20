@@ -96,11 +96,15 @@ cfl=C('cohort_flow.csv'); cex=C('cohort_flow_excluded.csv')
 if cfl is not None:
     row('M1','inclusion flow',' -> '.join(str(int(n)) for n in cfl.n))
 if cex is not None:
-    e=cex.set_index('group')
-    row('M1','drug-QC exclusion',
-        f"removed {int(e.loc['excluded','n'])}; refractory fraction "
-        f"{e.loc['excluded','refractory_rate']:.3f} vs {e.loc['retained','refractory_rate']:.3f}; "
-        f"median age {e.loc['excluded','median_age']:.1f} vs {e.loc['retained','median_age']:.1f}")
+    e=cex.set_index('variable')
+    for v in e.index:
+        row('M1',f'excluded vs retained, {v}', f"{e.loc[v,'excluded']} vs {e.loc[v,'retained']}")
+crg=C('cohort_regimens.csv')
+if crg is not None:
+    r_=crg.set_index('item').value
+    row('M1','recorded induction regimens',
+        f"{int(r_.loc['distinct first regimen entries'])} distinct first entries, "
+        f"{int(r_.loc['first entry is 7+3 or 3+7'])} a cytarabine and anthracycline induction")
 D=pd.DataFrame(out)
 D.to_csv(f'{R}/reported_numbers.csv',index=False)
 pd.set_option('display.max_rows',300,'display.width',200,'display.max_colwidth',90)

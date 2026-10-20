@@ -99,4 +99,19 @@ R-prog,sign agreement,"6/17 (C=0.01), 7/17 (C=0.1)"
 R-prog,stem/progenitor vs rest,"+0.0412 (n=3) vs +0.0089 (n=14), gap +0.0323"
 R-prog,positive in all four CV cells,"4/17; stem 3/3, rest 1/14"
 M1,inclusion flow,580 -> 458 -> 450 -> 346
-M1,drug-QC exclusion,removed 104; refractory fraction 0.307 vs 0.315; median age 62.5 vs 61.0
+M1,"excluded vs retained, specimens",104 vs 346
+M1,"excluded vs retained, with an induction response label",75/104 (72.1%) vs 254/346 (73.4%)
+M1,"excluded vs retained, refractory",23/75 (30.7%) vs 80/254 (31.5%)
+M1,"excluded vs retained, age at diagnosis, years, median (IQR)",62.5 (51.0 to 69.5) vs 61.0 (44.0 to 70.0)
+M1,"excluded vs retained, bone-marrow blasts, per cent, median (IQR)",69.5 (36.5 to 85.0) vs 75.0 (50.0 to 88.0)
+M1,"excluded vs retained, female",41/104 (39.4%) vs 162/346 (46.8%)
+M1,"excluded vs retained, bone-marrow aspirate",65/104 (62.5%) vs 208/346 (60.1%)
+M1,"excluded vs retained, ELN 2017 favorable",23/75 (30.7%) vs 105/254 (41.3%)
+M1,"excluded vs retained, ELN 2017 intermediate",12/75 (16.0%) vs 57/254 (22.4%)
+M1,"excluded vs retained, ELN 2017 adverse",36/75 (48.0%) vs 83/254 (32.7%)
+M1,"excluded vs retained, ELN 2017 ambiguous or missing karyotype",4/75 (5.3%) vs 9/254 (3.5%)
+M1,"excluded vs retained, collection waves 1 and 2",61/75 (81.3%) vs 150/254 (59.1%)
+M1,"excluded vs retained, collection waves 3 and 4",14/75 (18.7%) vs 96/254 (37.8%)
+M1,"excluded vs retained, annotated to both wave groups",0/75 (0.0%) vs 8/254 (3.1%)
+M1,"excluded vs retained, induction recorded as standard chemotherapy",75/75 (100.0%) vs 249/254 (98.0%)
+M1,recorded induction regimens,"60 distinct first entries, 108 a cytarabine and anthracycline induction"

@@ -136,12 +136,17 @@ if S11b is not None:
         'mean4': 'mean_over_four_cv_cells', 'allpos': 'positive_in_all_four',
         'stem': 'myeloid_stem_progenitor'})
 
+# ---- S12: the inclusion flow and what the drug-assay criterion removed -------------------
+S12a = rd('cohort_flow.csv')
+S12b = rd('cohort_flow_excluded.csv')
+
 SHEETS = [('S1_gene_sets', S1), ('S2_per_program', S2), ('S3_hyperparameter_sweep', S3),
           ('S4_budget_sweep', S4), ('S5_connectivity_audit', S5), ('S6_null_models', S6),
           ('S7a_enrichment', S7a), ('S7b_LSC_overlap', S7b),
           ('S8a_Ng2016_transcribed', S8a), ('S8b_Ng2016_resolution', S8b),
           ('S9_overall_survival', S9), ('S10_clinical_models', S10),
-          ('S11a_programme_sweep', S11a), ('S11b_matched_programmes', S11b)]
+          ('S11a_programme_sweep', S11a), ('S11b_matched_programmes', S11b),
+          ('S12a_inclusion_flow', S12a), ('S12b_cohort_composition', S12b)]
 path = f'{OUT}/Supporting_Information_Tables.xlsx'
 with pd.ExcelWriter(path, engine='openpyxl') as w:
     for name, df in SHEETS:

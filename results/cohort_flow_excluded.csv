@@ -1,3 +1,16 @@
-group,n,labelled,refractory,refractory_rate,median_age,pct_female,pct_marrow
-retained,346,254,80,0.31496062992125984,61.0,0.4682080924855491,0.6011560693641619
-excluded,104,75,23,0.30666666666666664,62.5,0.3942307692307692,0.625
+variable,denominator,excluded,retained
+specimens,all specimens,104,346
+with an induction response label,all specimens,75/104 (72.1%),254/346 (73.4%)
+refractory,labelled specimens,23/75 (30.7%),80/254 (31.5%)
+"age at diagnosis, years, median (IQR)",all specimens,62.5 (51.0 to 69.5),61.0 (44.0 to 70.0)
+"bone-marrow blasts, per cent, median (IQR)",all specimens,69.5 (36.5 to 85.0),75.0 (50.0 to 88.0)
+female,all specimens,41/104 (39.4%),162/346 (46.8%)
+bone-marrow aspirate,all specimens,65/104 (62.5%),208/346 (60.1%)
+ELN 2017 favorable,labelled specimens,23/75 (30.7%),105/254 (41.3%)
+ELN 2017 intermediate,labelled specimens,12/75 (16.0%),57/254 (22.4%)
+ELN 2017 adverse,labelled specimens,36/75 (48.0%),83/254 (32.7%)
+ELN 2017 ambiguous or missing karyotype,labelled specimens,4/75 (5.3%),9/254 (3.5%)
+collection waves 1 and 2,labelled specimens,61/75 (81.3%),150/254 (59.1%)
+collection waves 3 and 4,labelled specimens,14/75 (18.7%),96/254 (37.8%)
+annotated to both wave groups,labelled specimens,0/75 (0.0%),8/254 (3.1%)
+induction recorded as standard chemotherapy,labelled specimens,75/75 (100.0%),249/254 (98.0%)
