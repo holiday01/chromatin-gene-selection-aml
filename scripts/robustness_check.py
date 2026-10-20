@@ -26,8 +26,8 @@ from scipy import stats
 warnings.filterwarnings('ignore')
 ROOT = '/home/holiday01/2026_cm'
 C_GRID = [1e-3, 1e-2, 1e-1, 1.0]
-NSPLIT, NREP, TOP_M, NBOOT = 5, 20, 200, 2000
-REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant_v2', 'AML-all': 'programs_aml_all_v2'}
+NSPLIT, NREP, TOP_M, NBOOT, BOOT_SEED = 5, 20, 200, 2000, 5
+REFS = {'BMMC': 'programs', 'AML-mal': 'programs_aml_malignant_v3', 'AML-all': 'programs_aml_all_v3'}
 
 expr = pd.read_parquet(f'{ROOT}/data/interim/expr_norm_346.parquet')
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
@@ -80,18 +80,23 @@ def nadeau_bengio(d_folds, n_tr, n_te):
     p = 2 * stats.t.sf(abs(t), df=len(d) - 1) if np.isfinite(t) else np.nan
     return m, d, t, p
 
-def boot_xwave(dvA, dvR, yte, rng, n=NBOOT):
-    """patient-level bootstrap of the paired cross-wave AUROC difference"""
-    idx = np.arange(len(yte)); d = []
+def boot_indices(yte, n=NBOOT, seed=BOOT_SEED):
+    """one fixed set of patient-level resample indices, drawn from BOOT_SEED and reused by
+    every comparison here and in recompute_pvalues.py, so one contrast has one interval"""
+    rng = np.random.default_rng(seed); idx = np.arange(len(yte)); out = []
     for _ in range(n):
         b = rng.choice(idx, len(idx), replace=True)
         if len(np.unique(yte[b])) < 2: continue
-        d.append(roc_auc_score(yte[b], dvA[b]) - roc_auc_score(yte[b], dvR[b]))
-    d = np.array(d)
+        out.append(b)
+    return np.array(out)
+
+def boot_xwave(dvA, dvR, yte, bidx):
+    """patient-level bootstrap of the paired cross-wave AUROC difference"""
+    d = np.array([roc_auc_score(yte[b], dvA[b]) - roc_auc_score(yte[b], dvR[b]) for b in bidx])
     return d.mean(), np.percentile(d, [2.5, 97.5]), (d <= 0).mean()
 
-rng = np.random.default_rng(5)
 yte = yall[te]
+bidx = boot_indices(yte)
 n_tr_f, n_te_f = okm.sum() * (NSPLIT - 1) / NSPLIT, okm.sum() / NSPLIT
 rows = []
 for rname, tag in REFS.items():
@@ -136,7 +141,7 @@ for rname, tag in REFS.items():
             d = sc[k][C][0] - sc['armR'][C][0]
             mean_d, per_rep, t, p = nadeau_bengio(d, n_tr_f, n_te_f)
             wp = stats.wilcoxon(d).pvalue if np.any(d != 0) else np.nan
-            bm, bci, bp = boot_xwave(sc[k][C][2], sc['armR'][C][2], yte, rng)
+            bm, bci, bp = boot_xwave(sc[k][C][2], sc['armR'][C][2], yte, bidx)
             print(f'   C={C:<6g} CV {mean_d:+.4f} | naive Wilcoxon p={wp:8.3g} | '
                   f'NB-corrected t={t:+.2f} p={p:6.3f} | xwave {sc[k][C][1]-sc["armR"][C][1]:+.4f} '
                   f'boot 95% CI [{bci[0]:+.3f},{bci[1]:+.3f}] P(d<=0)={bp:.3f}')
@@ -152,5 +157,6 @@ for k in ['armA_sum', 'armA_mean_per_link', 'armA_count_partialled', 'n_links_on
     print(f'  {k:24s} CV positive {s.cv_positive.sum():2d}/{len(s)} | '
           f'xwave positive {s.xwave_positive.sum():2d}/{len(s)} | '
           f'NB p<0.05 {(s.nb_p < 0.05).sum():2d}/{len(s)} | '
-          f'bootstrap CI excludes 0 {(s.boot_lo > 0).sum():2d}/{len(s)}')
+          f'bootstrap CI excludes 0 {(s.boot_lo > 1e-9).sum():2d}/{len(s)}'
+          f' (lower bound at 0 in {((s.boot_lo > -1e-9) & (s.boot_lo < 1e-9)).sum():d})')
 print('\nwrote results/robustness_check.csv')

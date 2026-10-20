@@ -1,0 +1,91 @@
+section,item,value
+R1,CV diff range,+0.0109 to +0.0702
+R1,xwave diff range,-0.0054 to +0.0830
+R1,CV positive,12/12
+R1,xwave positive,10/12
+R1,NB p<0.05,2/12
+R1,bootstrap excludes 0,2/12
+R1,bootstrap lower bound at 0,1/12
+R5,armA_count_partialled CV positive / NB sig,"12/12, 2/12"
+R5,armA_mean_per_link CV positive / NB sig,"9/12, 0/12"
+R5,n_links_only CV positive / NB sig,"8/12, 1/12"
+R1,BMMC arm overlap,80/200
+R1,BMMC programs,22
+R1,BMMC eligible,"7,778"
+R1,AML-mal arm overlap,55/200
+R1,AML-mal programs,18
+R1,AML-mal eligible,"9,039"
+R1,AML-all arm overlap,75/200
+R1,AML-all programs,20
+R1,AML-all eligible,"8,155"
+R2,BMMC all-4-positive at k,"[40, 100, 150, 200]"
+R2,AML-mal all-4-positive at k,"[10, 17, 150, 200]"
+R2,AML-all all-4-positive at k,"[40, 150, 200]"
+R2,BMMC k=10 cv,-0.0718 / -0.0739
+R2,BMMC k=17 cv,-0.0538 / -0.0208
+R3,"Ng2016 LSC genes (published, experimental) cv",0.686 / 0.682
+R3,"Ng2016 LSC genes (published, experimental) xwave",0.699 / 0.750
+R3,HSC arm A top-99 (chromatin) cv,0.773 / 0.781
+R3,HSC arm A top-99 (chromatin) xwave,0.835 / 0.833
+R3,HSC arm R top-99 (RNA) cv,0.750 / 0.740
+R3,HSC arm R top-99 (RNA) xwave,0.765 / 0.775
+R3,top-99 by variance cv,0.711 / 0.699
+R3,top-99 by variance xwave,0.671 / 0.707
+R3/R5,armA_99 vs published_LSC C=0.01,"+0.0871 p=0.0003 xw=+0.1362 CI[+0.045,+0.236]"
+R3/R5,armA_99 vs published_LSC C=0.1,"+0.0994 p=0.0008 xw=+0.0825 CI[-0.006,+0.177]"
+R3/R5,armR_99 vs published_LSC C=0.01,"+0.0637 p=0.0118 xw=+0.0659 CI[-0.043,+0.176]"
+R3/R5,armR_99 vs published_LSC C=0.1,"+0.0584 p=0.0686 xw=+0.0244 CI[-0.083,+0.133]"
+R3/R5,armA_99 vs armR_99 C=0.01,"+0.0234 p=0.2211 xw=+0.0703 CI[+0.000,+0.139]"
+R3/R5,armA_99 vs armR_99 C=0.1,"+0.0410 p=0.1104 xw=+0.0581 CI[-0.030,+0.150]"
+R3/R5,armA_17 vs LSC17 C=0.01,"-0.0354 p=0.3480 xw=-0.0396 CI[-0.144,+0.069]"
+R3/R5,armA_17 vs LSC17 C=0.1,"-0.0147 p=0.7038 xw=-0.0103 CI[-0.152,+0.138]"
+R3/R5,armA_17 vs armR_17 C=0.01,"-0.0538 p=0.1065 xw=-0.0654 CI[-0.162,+0.031]"
+R3/R5,armA_17 vs armR_17 C=0.1,"-0.0208 p=0.5773 xw=-0.0337 CI[-0.156,+0.096]"
+R3/R5,armA_200 vs locus_mean_200 C=0.01,"+0.0302 p=0.1266 xw=+0.0254 CI[-0.046,+0.095]"
+R3/R5,armA_200 vs locus_mean_200 C=0.1,"+0.0378 p=0.2076 xw=+0.0005 CI[-0.104,+0.100]"
+R3/R5,locus_mean_200 vs armR_200 C=0.01,"+0.0022 p=0.9098 xw=+0.0283 CI[-0.025,+0.086]"
+R3/R5,locus_mean_200 vs armR_200 C=0.1,"+0.0080 p=0.7872 xw=+0.0674 CI[-0.003,+0.150]"
+R3/R5,armA_200 vs armR_200 C=0.01,"+0.0324 p=0.0410 xw=+0.0537 CI[+0.000,+0.115]"
+R3/R5,armA_200 vs armR_200 C=0.1,"+0.0458 p=0.0501 xw=+0.0679 CI[-0.017,+0.164]"
+R4,standard panel alone C=nan,+0.7296 p=nan
+R4,standard panel + chromatin - standard panel C=0.01,+0.0593 p=0.0118
+R4,standard panel + RNA - standard panel C=0.01,+0.0475 p=0.0426
+R4,standard panel + chromatin - standard panel + RNA C=0.01,+0.0119 p=0.3528
+R4,standard panel + chromatin - standard panel C=0.1,+0.0549 p=0.0226
+R4,standard panel + RNA - standard panel C=0.1,+0.0368 p=0.0982
+R4,standard panel + chromatin - standard panel + RNA C=0.1,+0.0181 p=0.2986
+R4,ELN2017 alone C=nan,+0.7369 p=nan
+R4,ELN2017 + chromatin - ELN2017 C=0.01,+0.0431 p=0.0322
+R4,ELN2017 + RNA - ELN2017 C=0.01,+0.0306 p=0.1509
+R4,ELN2017 + chromatin - ELN2017 + RNA C=0.01,+0.0126 p=0.3763
+R4,ELN2017 + chromatin - ELN2017 C=0.1,+0.0461 p=0.0213
+R4,ELN2017 + RNA - ELN2017 C=0.1,+0.0279 p=0.1685
+R4,ELN2017 + chromatin - ELN2017 + RNA C=0.1,+0.0182 p=0.3359
+R4,standard panel + ELN2017 alone C=nan,+0.7540 p=nan
+R4,standard panel + ELN2017 + chromatin - standard panel + ELN2017 C=0.01,+0.0289 p=0.0608
+R4,standard panel + ELN2017 + RNA - standard panel + ELN2017 C=0.01,+0.0167 p=0.3298
+R4,standard panel + ELN2017 + chromatin - standard panel + ELN2017 + RNA C=0.01,+0.0121 p=0.2735
+R4,standard panel + ELN2017 + chromatin - standard panel + ELN2017 C=0.1,+0.0283 p=0.0848
+R4,standard panel + ELN2017 + RNA - standard panel + ELN2017 C=0.1,+0.0126 p=0.4116
+R4,standard panel + ELN2017 + chromatin - standard panel + ELN2017 + RNA C=0.1,+0.0156 p=0.2576
+R4,chromatin alone C=0.01,+0.7593 p=nan
+R4,RNA alone C=0.01,+0.7346 p=nan
+R4,chromatin alone - RNA alone C=0.01,+0.0247 p=0.2983
+R4,chromatin alone C=0.1,+0.7474 p=nan
+R4,RNA alone C=0.1,+0.7255 p=nan
+R4,chromatin alone - RNA alone C=0.1,+0.0220 p=0.5008
+R6,OS positive,7/12
+R6,OS BMMC,"+0.0064 to +0.0221, sig 0/4"
+R6,OS AML-mal,"-0.0130 to +0.0141, sig 0/4"
+R6,OS AML-all,"-0.0465 to -0.0080, sig 0/4"
+R5,locus arm A (correlation-linked),0.773 / 0.769
+R5,locus arm R (expression),0.741 / 0.723
+R5,locus locus_sum (no linking),0.709 / 0.700
+R5,locus locus_mean (no linking),0.743 / 0.731
+R5,locus locus_top10 (no linking),0.728 / 0.735
+R5,locus n_links only,0.712 / 0.701
+R5,subset k=25,top-k 0.683 | bottom-k 0.704 | random-in-A 0.705 | random-in-pool 0.637
+R5,subset k=50,top-k 0.724 | bottom-k 0.695 | random-in-A 0.736 | random-in-pool 0.668
+R5,subset k=100,top-k 0.774 | bottom-k 0.731 | random-in-A 0.757 | random-in-pool 0.697
+R5,subset k=150,top-k 0.783 | bottom-k 0.756 | random-in-A 0.761 | random-in-pool 0.704
+R5,subset k=200,top-k 0.773 | random-in-A 0.773 | random-in-pool 0.718

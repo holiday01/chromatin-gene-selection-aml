@@ -29,3 +29,6 @@ manuscript/
 
 # ---- Review correspondence: not for public release before acceptance ----
 reviews/
+
+# ---- Superseded outputs kept locally for provenance ----
+results/_superseded/

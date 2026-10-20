@@ -1,7 +1,8 @@
 """Bring the last three quoted statistics onto the inference the Methods declares.
 
 Still on the abandoned 100-fold paired Wilcoxon:
-  (a) the clinical-covariate increments (nested CV, n=201)
+  (a) the clinical-covariate increments, standard panel and ELN2017, with the gene score
+      entering the second stage out-of-fold within each training set
   (b) link-count-only versus arm A in the three references
   (c) the overall-survival comparisons ("significant at three")
 
@@ -12,7 +13,7 @@ for v in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NU
     os.environ[v] = '1'
 import numpy as np, pandas as pd, warnings
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.metrics import roc_auc_score
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.metrics import concordance_index_censored
@@ -20,7 +21,7 @@ from sksurv.util import Surv
 from scipy import stats
 warnings.filterwarnings('ignore')
 ROOT='/home/holiday01/2026_cm'; NSPLIT,NREP=5,20
-REFS={'BMMC':'programs','AML-mal':'programs_aml_malignant_v2','AML-all':'programs_aml_all_v2'}
+REFS={'BMMC':'programs','AML-mal':'programs_aml_malignant_v3','AML-all':'programs_aml_all_v3'}
 def nb(d, n_tr, n_te):
     """Corrected resampled t-test on the individual fold differences; see
     robustness_check.py for why the per-repeat-mean variant was abandoned."""
@@ -39,8 +40,8 @@ XF=expr.loc[:,cols].to_numpy(dtype=np.float64).T
 EX={g:i for i,g in enumerate(expr.index)}
 rows=[]
 
-# ---------- (a) clinical covariates ------------------------------------------------
-print('=== (a) clinical covariate increments, Nadeau-Bengio ===')
+# ---------- (a) clinical covariates and ELN2017 ------------------------------------
+print('=== (a) two-stage clinical models, Nadeau-Bengio ===')
 pr=np.load(f'{ROOT}/data/programs/programs.npz',allow_pickle=True)
 pg=pr['genes'].astype(str); cts=list(pr['cell_types'].astype(str)); jH=cts.index('HSC')
 hscA=np.array([EX[pg[i]] for i in np.flatnonzero(pr['W_A'][:,jH]) if pg[i] in EX])
@@ -55,41 +56,75 @@ C['blast']=num(cl.reindex(cols)['%.Blasts.in.BM'])
 C['wbc']=np.log1p(num(cl.reindex(cols).wbcCount))
 C['flt3']=(cl.reindex(cols)['FLT3-ITD'].astype(str).str.lower()=='positive').astype(float)
 C['npm1']=(cl.reindex(cols)['NPM1'].astype(str).str.lower()=='positive').astype(float)
-ok=(yall>=0)&C.notna().all(1).to_numpy()
-Xo,Co,yo=XF[ok],C[ok.tolist()].to_numpy(float),yall[ok]
-print(f'  complete cases {ok.sum()} (CR {(yo==0).sum()} / Ref {(yo==1).sum()})')
+eln=cl.reindex(cols).ELN2017
+ELN3=['Favorable','Intermediate','Adverse']
+E=pd.DataFrame({'eln_intermediate':(eln=='Intermediate').astype(float),
+                'eln_adverse':(eln=='Adverse').astype(float)},index=cols)
+ok=(yall>=0)&C.notna().all(1).to_numpy()&eln.isin(ELN3).to_numpy()
+Xo,Co,Eo,yo=XF[ok],C[ok.tolist()].to_numpy(float),E[ok.tolist()].to_numpy(float),yall[ok]
+print(f'  complete cases {ok.sum()} (CR {(yo==0).sum()} / Ref {(yo==1).sum()}); '
+      f'ELN2017 favourable {int((Eo.sum(1)==0).sum())} / intermediate {int(Eo[:,0].sum())} '
+      f'/ adverse {int(Eo[:,1].sum())}')
+PANELS={'standard panel':Co,'ELN2017':Eo,'standard panel + ELN2017':np.hstack([Co,Eo])}
 folds=list(RepeatedStratifiedKFold(n_splits=NSPLIT,n_repeats=NREP,random_state=0).split(Xo,yo))
 ntr,nte=ok.sum()*(NSPLIT-1)/NSPLIT, ok.sum()/NSPLIT
-def nested(sel,Cg,clin=True,gene=True):
+
+def gene_scores(sel,Cg,tr,te,seed):
+    """gene score for the second stage: out-of-fold within the training set, so the
+    second-stage model never sees a score fitted on the same patient"""
+    M=Xo[:,sel]; s_tr=np.empty(len(tr))
+    inner=StratifiedKFold(n_splits=NSPLIT,shuffle=True,random_state=seed)
+    for itr,ite in inner.split(M[tr],yo[tr]):
+        mu,sd=M[tr][itr].mean(0),M[tr][itr].std(0)+1e-8
+        s_tr[ite]=LogisticRegression(C=Cg,max_iter=5000).fit((M[tr][itr]-mu)/sd,yo[tr][itr]) \
+                  .decision_function((M[tr][ite]-mu)/sd)
+    mu,sd=M[tr].mean(0),M[tr].std(0)+1e-8
+    s_te=LogisticRegression(C=Cg,max_iter=5000).fit((M[tr]-mu)/sd,yo[tr]) \
+         .decision_function((M[te]-mu)/sd)
+    return s_tr,s_te
+
+def twostage(sel,Cg,cov=None):
     a=[]
-    for tr,te in folds:
+    for i,(tr,te) in enumerate(folds):
         ft,fv=[],[]
-        if clin:
-            mu,sd=Co[tr].mean(0),Co[tr].std(0)+1e-8
-            ft.append((Co[tr]-mu)/sd); fv.append((Co[te]-mu)/sd)
-        if gene:
-            M=Xo[:,sel]; mu,sd=M[tr].mean(0),M[tr].std(0)+1e-8
-            Mt,Mv=(M[tr]-mu)/sd,(M[te]-mu)/sd
-            g=LogisticRegression(C=Cg,max_iter=5000).fit(Mt,yo[tr])
-            ft.append(g.decision_function(Mt)[:,None]); fv.append(g.decision_function(Mv)[:,None])
+        if cov is not None:
+            mu,sd=cov[tr].mean(0),cov[tr].std(0)+1e-8
+            ft.append((cov[tr]-mu)/sd); fv.append((cov[te]-mu)/sd)
+        if sel is not None:
+            s_tr,s_te=gene_scores(sel,Cg,tr,te,seed=i)
+            ft.append(s_tr[:,None]); fv.append(s_te[:,None])
         clf=LogisticRegression(C=1.0,max_iter=5000).fit(np.hstack(ft),yo[tr])
         a.append(roc_auc_score(yo[te],clf.decision_function(np.hstack(fv))))
     return np.array(a)
-base=nested(None,None,gene=False); R={}
+
+ARMS=(('chromatin',hscA),('RNA',hscR))
+alone={f'{nm}_{Cg}':twostage(sel,Cg,None) for Cg in (1e-2,1e-1) for nm,sel in ARMS}
+for pn,cov in PANELS.items():
+    base=twostage(None,None,cov)
+    print(f'  {pn} alone {base.mean():.3f}')
+    rows.append(dict(analysis='clinical',C=np.nan,comparison=f'{pn} alone',
+                     diff=base.mean(),nb_t=np.nan,nb_p=np.nan))
+    for Cg in (1e-2,1e-1):
+        comb={}
+        for nm,sel in ARMS:
+            comb[nm]=twostage(sel,Cg,cov)
+            m,t,p=nb(comb[nm]-base,ntr,nte)
+            print(f'    C={Cg:g} {pn} + {nm:9s} {comb[nm].mean():.3f} '
+                  f'(gene alone {alone[f"{nm}_{Cg}"].mean():.3f})  gain {m:+.4f} NB t={t:+.2f} p={p:.4f}')
+            rows.append(dict(analysis='clinical',C=Cg,comparison=f'{pn} + {nm} - {pn}',
+                             diff=m,nb_t=t,nb_p=p))
+        m,t,p=nb(comb['chromatin']-comb['RNA'],ntr,nte)
+        print(f'    C={Cg:g} {pn} + chromatin vs + RNA  {m:+.4f} NB t={t:+.2f} p={p:.4f}')
+        rows.append(dict(analysis='clinical',C=Cg,comparison=f'{pn} + chromatin - {pn} + RNA',
+                         diff=m,nb_t=t,nb_p=p))
 for Cg in (1e-2,1e-1):
-    for nm,sel in (('chromatin',hscA),('RNA',hscR)):
-        R[f'{nm}_alone_{Cg}']=nested(sel,Cg,clin=False)
-        R[f'clin+{nm}_{Cg}']=nested(sel,Cg,clin=True)
-print(f'  clinical only {base.mean():.3f}')
-for Cg in (1e-2,1e-1):
-    for nm in ('chromatin','RNA'):
-        m,t,p=nb(R[f'clin+{nm}_{Cg}']-base,ntr,nte)
-        print(f'  C={Cg:g} clinical+{nm:9s} {R[f"clin+{nm}_{Cg}"].mean():.3f} (alone {R[f"{nm}_alone_{Cg}"].mean():.3f})'
-              f'  gain {m:+.4f} NB t={t:+.2f} p={p:.4f}')
-        rows.append(dict(analysis='clinical',C=Cg,comparison=f'clinical+{nm} - clinical',diff=m,nb_t=t,nb_p=p))
-    m,t,p=nb(R[f'clin+chromatin_{Cg}']-R[f'clin+RNA_{Cg}'],ntr,nte)
-    print(f'  C={Cg:g} chromatin vs RNA after adjustment  {m:+.4f} NB t={t:+.2f} p={p:.4f}')
-    rows.append(dict(analysis='clinical',C=Cg,comparison='chromatin - RNA after adjustment',diff=m,nb_t=t,nb_p=p))
+    for nm,_ in ARMS:
+        rows.append(dict(analysis='clinical',C=Cg,comparison=f'{nm} alone',
+                         diff=alone[f'{nm}_{Cg}'].mean(),nb_t=np.nan,nb_p=np.nan))
+    m,t,p=nb(alone[f'chromatin_{Cg}']-alone[f'RNA_{Cg}'],ntr,nte)
+    print(f'  C={Cg:g} chromatin alone vs RNA alone  {m:+.4f} NB t={t:+.2f} p={p:.4f}')
+    rows.append(dict(analysis='clinical',C=Cg,comparison='chromatin alone - RNA alone',
+                     diff=m,nb_t=t,nb_p=p))
 
 # ---------- (b) link count versus arm A --------------------------------------------
 print('\n=== (b) link-count-only vs arm A, Nadeau-Bengio ===')

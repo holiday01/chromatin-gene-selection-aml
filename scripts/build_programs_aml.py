@@ -2,13 +2,18 @@
 healthy BMMC multiome, so the central claim can be tested against the obvious objection
 that a healthy marrow reference cannot carry AML-specific regulatory structure.
 
-The two series are separate libraries, but every ATAC cell carries a Linked_scRNA_barcode
-(100% coverage, median confidence 0.87), so each metacell is built from the SAME cells in
-both modalities and the peak-to-gene correlation is computed exactly as in the multiome.
+The two series are separate libraries. Every ATAC cell carries a Linked_scRNA_barcode, but
+that annotation is an imputed assignment, not a co-assay: it is many-to-one, a single RNA
+cell can stand in for hundreds of ATAC cells, and some barcodes name cells that are absent
+from the processed RNA matrices. Cells are therefore kept only when the linked barcode
+resolves to a real RNA cell, so that one inclusion policy covers both modalities and no
+metacell carries an all-zero RNA vector that would otherwise be read as zero expression.
 
-Diagnosis samples only (pre-treatment, matching Beat AML Initial Diagnosis) and, by default,
-malignant cells only. Peak sets differ between samples, so a union peak set is built first
-and every sample's peaks are mapped into it by midpoint.
+Diagnosis samples only, on both sides: the ATAC libraries and the linked RNA libraries must
+both be _DX. By default malignant cells only. Peak sets differ between samples, so a union
+set is built first and every sample peak is assigned to the union interval that CONTAINS it;
+assigning by nearest midpoint instead misplaces about 3% of peaks, because union intervals
+differ in width.
 
 Usage: build_programs_aml.py <ATAC dir> <RNA dir> <out npz> [all|malignant]
 """
@@ -75,7 +80,6 @@ Upk['ui'] = np.arange(len(Upk))
 chrom_slice = {c: (g.index[0], g.index[-1] + 1) for c, g in Upk.groupby('chrom', sort=False)}
 umid = Upk.mid.values
 ustart, uend = Upk.start.values, Upk.end.values
-UNMAPPED = [0]
 
 # ---------- metacell assignment, shared by both modalities ----------
 rows = []
@@ -95,6 +99,22 @@ _n0 = len(MD)
 MD = MD[MD.Linked_scRNA_Sample.astype(str).str.endswith('_DX')]
 print(f'  linked RNA restricted to diagnosis: dropped {_n0 - len(MD):,} of {_n0:,} cells '
       f'({100*(_n0-len(MD))/max(_n0,1):.1f}%)', flush=True)
+# A linked barcode can name a cell that is absent from the processed RNA matrix. Those
+# records were previously kept, so a metacell whose linked barcodes were all missing
+# contributed an all-zero RNA vector that entered the correlation and specificity
+# calculations as real zero expression. Resolve the barcodes first and keep only cells that
+# exist in both modalities, so one inclusion policy covers both.
+_n1 = len(MD)
+_ok = np.zeros(len(MD), bool)
+for _tok, _g in MD.groupby(MD.Linked_scRNA_Sample.astype(str)):
+    _c = glob.glob(f'{RNA}/GSM*_{_tok}_processed_matrix.mtx.gz')
+    if not _c: continue
+    _bc = set(pd.read_csv(_c[0].replace('_processed_matrix.mtx.gz', '_processed_barcodes.tsv.gz'),
+                          header=None)[0].values)
+    _ok[MD.index.get_indexer(_g.index)] = _g.Linked_scRNA_barcode.isin(_bc).values
+MD = MD[_ok]
+print(f'  linked barcode absent from the RNA matrix: dropped {_n1 - len(MD):,} of {_n1:,} '
+      f'({100*(_n1-len(MD))/max(_n1,1):.1f}%)', flush=True)
 _key = MD.Linked_scRNA_Sample.astype(str) + '|' + MD.Linked_scRNA_barcode.astype(str)
 _vc = _key.value_counts()
 print(f'  cross-modal assignment is many-to-one: {len(MD):,} ATAC cells -> {_vc.size:,} '
@@ -125,6 +145,7 @@ def atac_one(s):
     PB = (A @ sel).tocoo()                              # sample peaks x metacells
     pk = rd(s['peaks'], usecols=['seqnames', 'start', 'end'])
     ui = np.full(len(pk), -1, np.int64)
+    unmapped = 0
     for chrom, g in pk.groupby('seqnames', sort=False):
         if chrom not in chrom_slice: continue
         lo, hi = chrom_slice[chrom]
@@ -139,10 +160,10 @@ def atac_one(s):
         idx = lo + np.clip(cand, 0, hi - lo - 1)
         covered = okc & (ustart[idx] <= gs) & (uend[idx] >= ge)
         ui[g.index.values[covered]] = idx[covered]
-        UNMAPPED[0] += int((~covered).sum())
+        unmapped += int((~covered).sum())
     ok = (PB.row < len(ui)) & (ui[PB.row] >= 0)
-    return sp.coo_matrix((PB.data[ok], (ui[PB.row[ok]], PB.col[ok])),
-                         shape=(len(Upk), len(mckeys))).tocsr()
+    return (sp.coo_matrix((PB.data[ok], (ui[PB.row[ok]], PB.col[ok])),
+                          shape=(len(Upk), len(mckeys))).tocsr(), unmapped)
 
 def rna_one(tok):
     """genes x metacells counts, from the scRNA cells linked to this sample's ATAC cells."""
@@ -167,11 +188,14 @@ if __name__ == '__main__':
     print('reading ATAC matrices ...', flush=True)
     with Pool(8) as p:
         parts = p.map(atac_one, samples)
-    Pm_raw = None
+    Pm_raw, unmapped_total = None, 0
     for q in parts:
         if q is None: continue
-        Pm_raw = q if Pm_raw is None else Pm_raw + q
-    print(f'  sample peaks with no containing union interval: {UNMAPPED[0]:,}', flush=True)
+        mat, nun = q
+        unmapped_total += nun
+        Pm_raw = mat if Pm_raw is None else Pm_raw + mat
+    # counted per worker and summed here; a module-level counter would not cross the fork
+    print(f'  sample peaks with no containing union interval: {unmapped_total:,}', flush=True)
     print(f'  union peak x metacell matrix {Pm_raw.shape}, nnz {Pm_raw.nnz:,}', flush=True)
 
     print('reading RNA matrices ...', flush=True)

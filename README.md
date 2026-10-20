@@ -63,17 +63,27 @@ data/ref/                   included here
    `confound_audit.py`, `link_permutation.py`, `locus_arm.py`, `distributed_test.py`,
    `state_vs_abundance.py`, `clinical_adjust.py`, `eval_os.py`
 8. `recompute_pvalues.py`, `recompute_remaining.py` — all paired comparisons on one
-   inferential footing
+   inferential footing, including the clinical and ELN 2017 two-stage models
 9. `make_tables.py`, `make_figures.py`, `build_supplementary.py` — outputs
+10. `collect_numbers.py`, `check_reported_numbers.py` — the reported values and their check
 
 ## Inference
 
-Repeated stratified cross-validation reuses every patient across repeats, so paired tests
-over the individual folds are anticonservative. All comparisons between gene sets are
-reported as per-repeat mean differences (n = 20) with the Nadeau-Bengio variance correction,
-and the held-out wave comparison additionally as a patient-level bootstrap. Counts of
-reference x penalty x split cells favouring one arm are descriptive tallies; no sign test is
-computed across them.
+Repeated stratified cross-validation reuses every patient across repeats, so an uncorrected
+paired test over the folds is anticonservative. All comparisons between gene sets use the
+corrected resampled t-test on the individual fold differences, with the variance inflated by
+1/(kr) + n_test/n_train, and the held-out wave comparison additionally a patient-level
+bootstrap. The bootstrap resample indices are drawn once from a fixed seed and reused by
+every comparison in `robustness_check.py` and `recompute_pvalues.py`, so one contrast has
+one interval. Counts of reference x penalty x split cells favouring one arm are descriptive
+tallies; no sign test is computed across them, and they are not independent replications.
+
+Models that combine a gene set with clinical covariates are fitted in two stages inside each
+fold. The gene score entering the second stage is out-of-fold within the training partition,
+from a further stratified 5-fold split, so no patient contributes a score fitted on itself.
+
+`check_reported_numbers.py` asserts every value the manuscript quotes against the files that
+produced it and exits non-zero on a mismatch; `collect_numbers.py` lists them.
 
 ## Environment
 

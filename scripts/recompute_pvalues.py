@@ -18,7 +18,7 @@ from sklearn.metrics import roc_auc_score
 from scipy import stats
 warnings.filterwarnings('ignore')
 ROOT = '/home/holiday01/2026_cm'
-C_GRID = [1e-2, 1e-1]; NSPLIT, NREP, NBOOT = 5, 20, 2000
+C_GRID = [1e-2, 1e-1]; NSPLIT, NREP, NBOOT, BOOT_SEED = 5, 20, 2000, 5
 
 expr = pd.read_parquet(f'{ROOT}/data/interim/expr_norm_346.parquet')
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
@@ -59,14 +59,20 @@ def nb(d, n_tr, n_te):
     t=m/se if se>0 else np.nan
     return m,t,(2*stats.t.sf(abs(t),df=len(d)-1) if np.isfinite(t) else np.nan)
 
-rng = np.random.default_rng(5); yte = yall[te]
-def boot(dvA, dvB):
-    idx = np.arange(len(yte)); d = []
-    for _ in range(NBOOT):
+yte = yall[te]
+def boot_indices(n=NBOOT, seed=BOOT_SEED):
+    """one fixed set of patient-level resample indices, drawn from BOOT_SEED and reused by
+    every comparison here and in robustness_check.py, so one contrast has one interval"""
+    rng = np.random.default_rng(seed); idx = np.arange(len(yte)); out = []
+    for _ in range(n):
         b = rng.choice(idx, len(idx), replace=True)
         if len(np.unique(yte[b])) < 2: continue
-        d.append(roc_auc_score(yte[b], dvA[b]) - roc_auc_score(yte[b], dvB[b]))
-    d = np.array(d); return d.mean(), np.percentile(d, [2.5, 97.5])
+        out.append(b)
+    return np.array(out)
+BIDX = boot_indices()
+def boot(dvA, dvB):
+    d = np.array([roc_auc_score(yte[b], dvA[b]) - roc_auc_score(yte[b], dvB[b]) for b in BIDX])
+    return d.mean(), np.percentile(d, [2.5, 97.5])
 
 pr = np.load(f'{ROOT}/data/programs/programs.npz', allow_pickle=True)
 pg = pr['genes'].astype(str); cts = list(pr['cell_types'].astype(str)); jH = cts.index('HSC')

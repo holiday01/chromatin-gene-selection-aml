@@ -10,8 +10,8 @@ ROOT = '/home/holiday01/2026_cm'
 OUT  = f'{ROOT}/manuscript/supplementary'
 os.makedirs(OUT, exist_ok=True)
 REFS = {'BMMC (healthy marrow)': 'programs',  # note: eval/OS outputs for this one are tagged 'programs_bmmc' / 'programs'
-        'AML malignant': 'programs_aml_malignant_v2',
-        'AML all cells': 'programs_aml_all_v2'}
+        'AML malignant': 'programs_aml_malignant_v3',
+        'AML all cells': 'programs_aml_all_v3'}
 LSC104 = {l.strip() for l in open(f'{ROOT}/data/ref/published_signatures/ng2016_lsc104_resolved.txt') if l.strip()}
 LSC17  = {l.strip() for l in open(f'{ROOT}/data/ref/published_signatures/ng2016_lsc17.txt') if l.strip()}
 ALIAS  = {'LOC284422': 'C19orf77'}
@@ -46,7 +46,9 @@ def rj(p):
 # ---- S2: per-program, all references ---------------------------------------------------
 S2 = []
 for label, tag in REFS.items():
-    t2 = 'programs_bmmc' if tag == 'programs' else tag
+    # eval_programs.py names its output after the npz, so the healthy reference writes
+    # eval_programs_per_program.csv; an older run also left eval_programs_bmmc_*.csv behind
+    t2 = tag
     d = rd(f'eval_{t2}_per_program.csv')
     if d is not None: d.insert(0, 'reference', label); S2.append(d)
 S2 = pd.concat(S2, ignore_index=True) if S2 else None
@@ -57,6 +59,12 @@ if S2 is not None:
 
 # ---- S3/S4: hyperparameter and budget sweeps -------------------------------------------
 S3, S4 = rd('sweep_programs.csv'), rd('budget_sweep.csv')
+# both sweeps were written with the uncorrected per-fold Wilcoxon the paper no longer uses;
+# keep the effect sizes, drop the P values rather than show two inference methods
+for _d in (S3, S4):
+    if _d is not None:
+        _d.drop(columns=[c for c in _d.columns if c.startswith('p_') or c == 'p'],
+                inplace=True, errors='ignore')
 
 # ---- S5: connectivity audit -------------------------------------------------------------
 S5 = []
@@ -110,11 +118,16 @@ for label, tag in REFS.items():
         S9.append(r)
 S9 = pd.DataFrame(S9) if S9 else None
 
+# ---- S10: clinical covariates and ELN2017 ------------------------------------------------
+S10 = rd('recomputed_remaining.csv')
+if S10 is not None:
+    S10 = S10[S10.analysis == 'clinical'].drop(columns='analysis')
+
 SHEETS = [('S1_gene_sets', S1), ('S2_per_program', S2), ('S3_hyperparameter_sweep', S3),
           ('S4_budget_sweep', S4), ('S5_connectivity_audit', S5), ('S6_null_models', S6),
           ('S7a_enrichment', S7a), ('S7b_LSC_overlap', S7b),
           ('S8a_Ng2016_transcribed', S8a), ('S8b_Ng2016_resolution', S8b),
-          ('S9_overall_survival', S9)]
+          ('S9_overall_survival', S9), ('S10_clinical_models', S10)]
 path = f'{OUT}/Supporting_Information_Tables.xlsx'
 with pd.ExcelWriter(path, engine='openpyxl') as w:
     for name, df in SHEETS:

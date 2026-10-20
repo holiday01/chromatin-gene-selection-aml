@@ -1,5 +1,8 @@
-"""Pull every number the Results section quotes, from the corrected (v2) outputs, so the
-rewrite can be checked against one table instead of a dozen files."""
+"""Pull every number the Results section quotes into one table, so the text can be
+checked against a single file instead of a dozen.
+
+check_reported_numbers.py asserts the values the manuscript actually carries; this script
+just lists what the outputs hold."""
 import json, numpy as np, pandas as pd
 R='/home/holiday01/2026_cm/results'
 def J(f):
@@ -19,11 +22,12 @@ if rb is not None:
     row('R1','CV positive',f'{int((a.cv_diff>0).sum())}/12')
     row('R1','xwave positive',f'{int((a.xwave_diff>0).sum())}/12')
     row('R1','NB p<0.05',f'{int((a.nb_p<0.05).sum())}/12')
-    row('R1','bootstrap excludes 0',f'{int((a.boot_lo>0).sum())}/12')
+    row('R1','bootstrap excludes 0',f'{int((a.boot_lo>1e-9).sum())}/12')
+    row('R1','bootstrap lower bound at 0',f'{int(((a.boot_lo>-1e-9)&(a.boot_lo<1e-9)).sum())}/12')
     for nm in ['armA_count_partialled','armA_mean_per_link','n_links_only']:
         v=rb[rb.arm==nm]
         row('R5',f'{nm} CV positive / NB sig',f'{int((v.cv_diff>0).sum())}/12, {int((v.nb_p<0.05).sum())}/12')
-for t,l in [('programs','BMMC'),('programs_aml_malignant_v2','AML-mal'),('programs_aml_all_v2','AML-all')]:
+for t,l in [('programs','BMMC'),('programs_aml_malignant_v3','AML-mal'),('programs_aml_all_v3','AML-all')]:
     z=np.load(f'/home/holiday01/2026_cm/data/programs/{t}.npz',allow_pickle=True)
     ct=list(z['cell_types'].astype(str)); j=ct.index('HSC')
     A=set(np.flatnonzero(z['W_A'][:,j])); B=set(np.flatnonzero(z['W_R'][:,j]))
@@ -67,6 +71,6 @@ if dt is not None:
         s=dt[dt['size']==sz]
         row('R5',f'subset k={sz}', ' | '.join(f"{r.arm} {r['cv_0.01']:.3f}" for _,r in s.iterrows() if not r.arm.startswith('var')))
 D=pd.DataFrame(out)
-D.to_csv(f'{R}/v2_numbers.csv',index=False)
+D.to_csv(f'{R}/reported_numbers.csv',index=False)
 pd.set_option('display.max_rows',300,'display.width',200,'display.max_colwidth',90)
 print(D.to_string(index=False))
