@@ -32,3 +32,7 @@ reviews/
 
 # ---- Superseded outputs kept locally for provenance ----
 results/_superseded/
+
+# ---- Python bytecode ----
+__pycache__/
+*.pyc
