@@ -18,7 +18,7 @@ ROOT = '/home/holiday01/2026_cm'
 M = f'{ROOT}/manuscript'
 CHECKER = f'{ROOT}/scripts/check_reported_numbers.py'
 SRC = ['abstract_v3.md', 'introduction.md', 'methods.md', 'results.md', 'discussion.md',
-       'figure_legends.md', 'supplementary_methods.md', 'table_notes.py',
+       'figure_legends.md', 'supplementary_methods.md', 'cover_letter.md', 'table_notes.py',
        'Table1_cohort.csv', 'Table2_enrichment.csv']
 
 
@@ -64,6 +64,8 @@ CASES = [
     ('an enumeration count in the Methods that the artefact does not hold',
      [('methods.md', '680 for the three-programme definition',
        '681 for the three-programme definition')], None),
+    ('a headline number in the cover letter that the manuscript does not report',
+     [('cover_letter.md', 'AUROC 0.773', 'AUROC 0.783')], None),
     ('a bound loosened until it no longer binds',
      [('results.md', 'within 0.014 of each other', 'within 0.14 of each other')], None),
     ('a claim sentence rewritten so that no pattern matches',

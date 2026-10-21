@@ -677,6 +677,26 @@ claim('methods.md',
       _CP.loc['myeloid stem/progenitor', 'n_assignments'],
       _CP.loc['progenitor, lymphoid included', 'n_assignments'], label='enumeration counts')
 
+# the cover letter repeats the headline numbers, so it is read against the same sources
+claim('cover_letter.md',
+      r'are ' + _N + r' diagnostic Beat AML specimens, ' + _N + r' of them with a',
+      len(_SP), _RESP.notna().sum(), label='letter cohort')
+claim('cover_letter.md', r'by \+' + _N + r' to\s*\+' + _N + r' in the area under',
+      _a.cv_diff.min(), _a.cv_diff.max(), label='letter cv range')
+claim('cover_letter.md',
+      r'accessibility rule reached AUROC ' + _N + r' and the\s*expression rule ' + _N +
+      r', against ' + _N + r' for the published set',
+      L['cv']['HSC arm A top-99 (chromatin)']['0.01'],
+      L['cv']['HSC arm R top-99 (RNA)']['0.01'],
+      L['cv']['Ng2016 LSC genes (published, experimental)']['0.01'], label='letter 99-gene')
+claim('cover_letter.md',
+      r'an increment of \+' + _N + r' \(\*P\* = ' + _N + r'\), and\s*added to the ELN 2017 '
+      r'risk category \+' + _N + r' \(\*P\* = ' + _N + r'\)',
+      C_('standard panel + chromatin - standard panel', 0.01),
+      Cp('standard panel + chromatin - standard panel', 0.01),
+      C_('ELN2017 + chromatin - ELN2017', 0.01),
+      Cp('ELN2017 + chromatin - ELN2017', 0.01), label='letter clinical')
+
 # the two sentences that state how close the link-count arm comes, as a bound
 _lkx = rr[(rr.analysis == 'link_count') & (rr.reference != 'BMMC')]
 for _f, _pat in (('results.md', r'the two were within ' + _N + r' of each other'),
@@ -690,7 +710,7 @@ section('pass10')
 # file, which a comment or an unrelated tolerance also satisfies, so a literal-only number
 # is reported as weakly covered rather than treated as checked. Uncovered decimals fail.
 _MD = ('abstract_v3.md', 'introduction.md', 'methods.md', 'results.md', 'discussion.md',
-       'figure_legends.md', 'supplementary_methods.md')
+       'figure_legends.md', 'supplementary_methods.md', 'cover_letter.md')
 # An exemption is bound to the sentence that uses the number and to the role it plays
 # there, not to the value, so that a result which happens to equal a penalty or a
 # threshold is not waved through.
