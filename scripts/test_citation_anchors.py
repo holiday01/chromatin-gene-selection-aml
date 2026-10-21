@@ -22,7 +22,8 @@ TEX, DOC = 'build_tex.py', 'build_docx.py'
 
 # anchors whose reference stays cited somewhere else, so only per-anchor bookkeeping sees them
 NG = ('introduction.md', 'in independent clinical cohorts', 'in independent patient cohorts')
-LAMBO = ('introduction.md', 'that persist through treatment', 'that endure through treatment')
+LAMBO = ('introduction.md', 'towards more primitive states at relapse',
+         'towards less primitive states at relapse')
 # an anchor that is the only citation of its reference, which either check would reject
 STEIGER = ('methods.md', 'with a variable in common', 'with one variable in common')
 SPARE = ('references.bib', '@article{Steiger1980,',
@@ -39,6 +40,10 @@ ORDER = (TEX,
          "    t=re.sub(r'\\*\\*(.+?)\\*\\*', r'\\\\textbf{\\1}', t, flags=re.S)")
 OLD_CHECK = (TEX, 'missing=[e[0] for e in CITE if e[0] not in MATCHED]',
              'missing=[e[0] for e in CITE if e[1] not in TEX]')
+# the Results report the numbers and cite nothing, so an anchor loose enough to match a
+# sentence there has to be rejected rather than quietly placed
+LOOSE_TEX = (TEX, '"with the corrected resampled t-test"', '"corrected resampled t-test"')
+LOOSE_DOC = (DOC, '"with the corrected resampled t-test"', '"corrected resampled t-test"')
 # braces are grouping characters and a backtick is a left quote in LaTeX, so the converter
 # has to escape the one and convert the other before any command braces are inserted
 CODESPAN = (TEX, "    t=re.sub(r'`([^`]+)`', r'\\\\texttt{\\1}', t)    # a backtick is a left quote in LaTeX",
@@ -79,6 +84,10 @@ CASES = [
      [RAW_TEX], [TEX], 'BACKSLASH IN THE MARKDOWN SOURCE'),
     ('a citation key in the text that the bibliography does not define',
      [KEY_DOC], [DOC], 'CITED BUT NOT IN BIB'),
+    ('an anchor loose enough to place a citation in the Results',
+     [LOOSE_TEX], [TEX], 'CITATIONS PLACED IN THE RESULTS'),
+    ('an anchor loose enough to place a citation in the Results',
+     [LOOSE_DOC], [DOC], 'CITATIONS PLACED IN THE RESULTS'),
     ('the markdown substitutions in the order that leaves (**a**) as (*a*)',
      [ORDER], [TEX], 'UNCONVERTED MARKDOWN LEFT IN THE TEX'),
     ('the code spans left as backticks, which LaTeX sets as quotation marks',

@@ -1,4 +1,4 @@
-"""Figures 1-4."""
+"""Figures 2 to 5. Figure 1, the specimen flow and the design, is make_flow_figure.py."""
 import os, json, numpy as np, pandas as pd
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ def panel(ax,letter):
 LBL={'BMMC':'Healthy marrow','AML-mal':'AML, malignant cells','AML-all':'AML, all cells'}
 SHORT={'BMMC':'Healthy','AML-mal':'AML-M','AML-all':'AML-A'}
 
-# ---------------- Figure 1: the 24 comparisons ----------------
+# ---------------- Figure 2: the 24 comparisons ----------------
 rb=pd.read_csv(f'{ROOT}/results/robustness_check.csv'); a=rb[rb.arm=='armA_sum']
 fig,axes=plt.subplots(1,2,figsize=(5.8,3.5),sharey=True)
 for ax,(col,ttl) in zip(axes,[('cv_diff','Cross-validation'),('xwave_diff','Held-out waves')]):
@@ -49,9 +49,9 @@ fig.legend(handles=[Line2D([],[],color=CA,lw=1,label='corrected resampled 95% CI
                     Line2D([],[],color=CG,lw=1,label='patient bootstrap 95% CI')],
            loc='lower center',ncol=2,fontsize=7.5,bbox_to_anchor=(0.5,-0.02))
 fig.tight_layout(rect=(0,0.06,1,1))
-fig.savefig(f'{OUT}/Figure1.png',dpi=300,bbox_inches='tight'); plt.close(fig)
+fig.savefig(f'{OUT}/Figure2.png',dpi=300,bbox_inches='tight'); plt.close(fig)
 
-# ---------------- Figure 2: gene budget ----------------
+# ---------------- Figure 3: gene budget ----------------
 bs=pd.read_csv(f'{ROOT}/results/budget_sweep.csv')
 fig,axes=plt.subplots(1,3,figsize=(5.8,2.9),sharey=True)
 for ax,ref in zip(axes,REFS):
@@ -66,9 +66,9 @@ axes[0].set_ylabel('arm A − arm R (ΔAUROC)')
 axes[0].legend(fontsize=7,ncol=1,loc='lower right',borderaxespad=.3,
                 handlelength=1.6,labelspacing=.3)
 for ax,L in zip(axes,'abc'): panel(ax,L)
-fig.tight_layout(); fig.savefig(f'{OUT}/Figure2.png',dpi=300,bbox_inches='tight'); plt.close(fig)
+fig.tight_layout(); fig.savefig(f'{OUT}/Figure3.png',dpi=300,bbox_inches='tight'); plt.close(fig)
 
-# ---------------- Figure 3: versus the published set ----------------
+# ---------------- Figure 4: versus the published set ----------------
 L=json.load(open(f'{ROOT}/results/baseline_lsc104.json'))
 names=[('HSC arm A top-99 (chromatin)','Arm A',CA),('HSC arm R top-99 (RNA)','Arm R',CR_),
        ('Ng2016 LSC genes (published, experimental)','Ng et al. LSC genes','#6a6a6a'),
@@ -115,9 +115,9 @@ ax.legend(handles=[Line2D([],[],color=CA,lw=1,marker='o',ms=4,label='CV, correct
           facecolor='white',edgecolor='none')
 for ax_,Ltr in zip(axes,'abc'): panel(ax_,Ltr)
 
-fig.savefig(f'{OUT}/Figure3.png',dpi=300,bbox_inches='tight'); plt.close(fig)
+fig.savefig(f'{OUT}/Figure4.png',dpi=300,bbox_inches='tight'); plt.close(fig)
 
-# ---------------- Figure 4: what carries the signal ----------------
+# ---------------- Figure 5: what carries the signal ----------------
 loc=json.load(open(f'{ROOT}/results/locus_arm.json'))
 pg=json.load(open(f'{ROOT}/results/link_permutation.json'))
 pw=json.load(open(f'{ROOT}/results/link_permutation_window100.json'))
@@ -156,6 +156,6 @@ ax.set_xticks(range(len(lbl4))); ax.set_xticklabels([l[1] for l in lbl4],fontsiz
 ax.set_ylabel('comparisons ahead of arm R (of 12)',fontsize=8); ax.axhline(6,color=CG,lw=.6,ls=':',alpha=.6)
 ax.set_title('Connectivity',fontsize=9.5)
 for a_,L in zip(axes,'abc'): panel(a_,L)
-fig.tight_layout(w_pad=1.6); fig.savefig(f'{OUT}/Figure4.png',dpi=300,bbox_inches='tight'); plt.close(fig)
-print('wrote Figure1-4.png to manuscript/figures/')
+fig.tight_layout(w_pad=1.6); fig.savefig(f'{OUT}/Figure5.png',dpi=300,bbox_inches='tight'); plt.close(fig)
+print('wrote Figure2-5.png to manuscript/figures/')
 for f in sorted(os.listdir(OUT)): print(' ',f,os.path.getsize(f'{OUT}/{f}')//1024,'KB')
