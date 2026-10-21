@@ -346,10 +346,26 @@ if _m:
     chk('note cohort n', int(_m.group(2)), len(_i), 0)
     chk('note blast n', int(_m.group(3)), int(_n(_cl.reindex(_i)['%.Blasts.in.BM']).notna().sum()), 0)
     chk('note wbc n', int(_m.group(4)), int(_n(_cl.reindex(_i).wbcCount).notna().sum()), 0)
-_m2 = _re.search(r'survival rows use the (\d+) specimens with a follow-up time above zero', _note)
-chk('note survival parses', 1, int(_m2 is not None), 0)
+_m2 = _re.search(r'Kaplan-Meier estimates use the (\d+)\s*specimens with a follow-up time '
+                 r'above zero', _note)
+chk('note KM parses', 1, int(_m2 is not None), 0)
 if _m2:
-    chk('note survival n', int(_m2.group(1)), int((_n(_S.overallSurvival) > 0).sum()), 0)
+    chk('note KM n', int(_m2.group(1)), int((_n(_S.overallSurvival) > 0).sum()), 0)
+# the note separates the two denominators, so check each against the row it describes
+_t1 = pd.read_csv('/home/holiday01/2026_cm/manuscript/Table1_cohort.csv').set_index('Characteristic')
+_dead = _S.vitalStatus.astype(str).str.lower().eq('dead')
+_dn, _dp = _re.match(r'(\d+) \((\d+)%\)', _t1.loc['Deaths', 'All diagnostic specimens']).groups()
+chk('table deaths n', int(_dn), int(_dead.sum()), 0)
+chk('table deaths per cent', int(_dp), round(100 * _dead.mean()), 0)
+chk('every labelled specimen has follow-up', int(_S.induction_response.notna().sum()),
+    int(((_n(_S.overallSurvival) > 0) & _S.induction_response.notna()).sum()), 0)
+# the blast fraction the Introduction quotes
+_intro = ' '.join(open('/home/holiday01/2026_cm/manuscript/introduction.md').read().split())
+_m5 = _re.search(r'a median of (\d+)% bone-marrow blasts in this cohort', _intro)
+chk('introduction blast median parses', 1, int(_m5 is not None), 0)
+if _m5:
+    chk('introduction blast median', int(_m5.group(1)),
+        float(_n(_cl.reindex(_i)['%.Blasts.in.BM']).median()), 0.5)
 _m3 = _re.search(r'includes the (\d+) specimens whose source label is Complete Response i', _note)
 chk('note CRi parses', 1, int(_m3 is not None), 0)
 if _m3:
