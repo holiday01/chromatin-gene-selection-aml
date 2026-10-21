@@ -20,10 +20,16 @@ Four properties of the design bound what the output can support.
      its membership and with the sensitivity of the grouping definition, because no
      permutation over programme labels can establish exchangeability between lineages.
 """
+import itertools
 import numpy as np, pandas as pd
 from scipy.stats import spearmanr, pearsonr, wilcoxon, binomtest
 ROOT = '/home/holiday01/2026_cm'
-N_PERM = 200000
+# Assignments of the compartment labels to the matched programmes are enumerated rather
+# than sampled, 680 and 2380 of them, so the tail count is exact. The same 17 values are
+# redistributed, so two assignments that are equal in theory can differ in the last bits
+# of their floats; a gap within TIE_TOL of the observed one counts as equal. The nearest
+# genuinely different gap is 7e-5 away, so the tolerance cannot merge distinct statistics.
+TIE_TOL = 1e-12
 
 # cell identity correspondence between the two reference nomenclatures, written from the
 # cell type names alone, before looking at any A-minus-R value
@@ -99,31 +105,33 @@ print('\n=== stem/progenitor compartment against the remaining programmes ===')
 print(M[['bmmc', 'aml', 'mean4', 'allpos', 'stem']]
       .sort_values('mean4', ascending=False)
       .to_string(index=False, float_format=lambda v: f'{v:+.4f}'))
-rng = np.random.default_rng(5)
 allv = M.mean4.values
 comp = []
 for lbl, members in (('myeloid stem/progenitor', STEMPROG),
                      ('progenitor, lymphoid included', BROADER)):
     stem = M.bmmc.isin(members)
     s, o = M.loc[stem, 'mean4'].values, M.loc[~stem, 'mean4'].values
-    obs = s.mean() - o.mean(); ns = len(s)
-    perm = np.array([(lambda q: q[:ns].mean() - q[ns:].mean())(rng.permutation(allv))
-                     for _ in range(N_PERM)])
-    p1 = max((perm >= obs).mean(), 1 / N_PERM)
-    p2 = max((np.abs(perm) >= abs(obs)).mean(), 1 / N_PERM)
+    obs = s.mean() - o.mean(); ns = len(s); n = len(allv); tot = allv.sum()
+    gaps = np.array([(lambda q: q / ns - (tot - q) / (n - ns))(allv[list(c)].sum())
+                     for c in itertools.combinations(range(n), ns)])
+    p1 = float((gaps >= obs - TIE_TOL).mean())
+    p2 = float((np.abs(gaps) >= abs(obs) - TIE_TOL).mean())
+    _d = np.abs(gaps - obs)
+    ties = int((_d <= TIE_TOL).sum()); nearest = float(_d[_d > TIE_TOL].min())
     print(f'\n  {lbl} ({", ".join(members)})')
     print(f'    n={len(s)} mean A-R {s.mean():+.4f} | rest (n={len(o)}) {o.mean():+.4f} | '
           f'gap {obs:+.4f}')
-    print(f'    permutation over programme labels, {N_PERM//1000}k draws: '
-          f'one-sided p={p1:.4g}, two-sided p={p2:.4g}')
+    print(f'    all {len(gaps)} label assignments enumerated: one-sided p={p1:.4g}, '
+          f'two-sided p={p2:.4g} ({ties} assignment(s) tied with the observed gap, '
+          f'nearest different gap {nearest:.3g})')
     print(f'    positive in all four CV cells: {int(M.loc[stem, "allpos"].sum())}/{len(s)}; '
           f'among the rest {int(M.loc[~stem, "allpos"].sum())}/{len(o)}')
     comp.append(dict(definition=lbl, n_stem=len(s), n_rest=len(o), mean_stem=s.mean(),
                      mean_rest=o.mean(), gap=obs, p_one_sided=p1, p_two_sided=p2,
                      allpos_stem=int(M.loc[stem, 'allpos'].sum()),
-                     allpos_rest=int(M.loc[~stem, 'allpos'].sum()), n_perm=N_PERM))
-# the permutation P values are Monte Carlo, so the manuscript must quote this run's own
-# values rather than a reproduction with another random stream
+                     allpos_rest=int(M.loc[~stem, 'allpos'].sum()),
+                     n_assignments=len(gaps), tail_count=int((gaps >= obs - TIE_TOL).sum()),
+                     ties=ties, nearest_non_tie=nearest, tie_tol=TIE_TOL))
 pd.DataFrame(comp).to_csv(f'{ROOT}/results/cross_reference_compartment.csv', index=False)
 print('\nwrote results/cross_reference_compartment.csv')
 print(f'\nprogrammes positive in all four CV cells: {int(M.allpos.sum())}/{len(M)} '

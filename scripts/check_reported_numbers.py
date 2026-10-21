@@ -1,13 +1,22 @@
-"""Assert every number the manuscript quotes against the files that produced it.
+"""Check the numbers the manuscript quotes against the files that produced them.
 
-The ninth pass reads the manuscript back and requires every decimal in it to appear, at
-the precision the text uses, as a literal in this file. That is a tripwire for a number
-added to the text and never checked, not proof that each number is tied to the right
-artefact; the passes above do that one value at a time.
+There are three layers here and they are not equally strong.
 
-Each chk() call carries the value as written in the text and the expression that reads it
-back out of results/. A mismatch prints both and the script exits non-zero, so a rerun
-that moves a number cannot pass unnoticed.
+Passes 1 to 8 carry the value as written in the text beside the expression that reads it
+back out of results/. They catch a result that moves under a rerun. They do not catch an
+edit to the manuscript, because the number they compare against is transcribed here.
+
+Pass 10 reads the value out of the sentence that states it and compares that with a source
+field, keeping the sign, the exponent and the precision the sentence uses. An edit to the
+sentence is therefore checked against the source, and an edit that leaves the sentence
+unmatchable fails as a missing claim. This is the layer to extend when a claim must not
+drift. bound() is its form for a sentence that states a bound rather than a value.
+
+Pass 9 reports how many decimals in the text are bound by a claim, how many merely appear
+as a literal somewhere in this file, and how many are neither. Only the last of those
+fails. A literal-only number is not a checked number, since a comment or an unrelated
+tolerance satisfies that test, which is why the counts are printed rather than called
+coverage. Exemptions are bound to the sentence and the role, not to the value.
 
 Every mismatch found in any section is carried to the exit code. An earlier version cleared
 the list between sections and exited on the last one alone, so a mismatch in the first
@@ -428,17 +437,16 @@ chk('xref wilcoxon BMMC C=0.1', 0.44, float(_xa.loc['BMMC C=0.1', 'wilcoxon_p'])
 _xp = pd.read_csv(f'{R}/cross_reference_programs.csv').set_index('bmmc')
 chk('CD4 naive healthy', -0.0385, float(_xp.loc['CD4+ T naive', 'b001']))
 chk('CD4 naive malignant', 0.0972, float(_xp.loc['CD4+ T naive', 'a001']))
-# the two compartment definitions; their permutation P values are Monte Carlo, so they are
-# read from the run that produced them rather than reproduced with another random stream
+# the two compartment definitions. The means, the gap and the exact P value are read out
+# of the text in pass10; what is left here is the count stated in words, which no regular
+# expression over the digits can reach, and the tail count behind the P value.
 _cp = pd.read_csv(f'{R}/cross_reference_compartment.csv').set_index('definition')
-for d_, mu, rest, gap, pv, ap in (
-        ('myeloid stem/progenitor', 0.0412, 0.0089, 0.0323, 0.023, 3),
-        ('progenitor, lymphoid included', 0.0376, 0.0075, 0.0301, 0.014, 3)):
-    chk(f'{d_[:11]} stem mean', mu, float(_cp.loc[d_, 'mean_stem']))
-    chk(f'{d_[:11]} rest mean', rest, float(_cp.loc[d_, 'mean_rest']))
-    chk(f'{d_[:11]} gap', gap, float(_cp.loc[d_, 'gap']))
-    chk(f'{d_[:11]} one-sided p', pv, float(_cp.loc[d_, 'p_one_sided']))
+for d_, ap, tail, nass in (('myeloid stem/progenitor', 3, 15, 680),
+                           ('progenitor, lymphoid included', 3, 34, 2380)):
     chk(f'{d_[:11]} allpos', ap, int(_cp.loc[d_, 'allpos_stem']), 0)
+    chk(f'{d_[:11]} tail count', tail, int(_cp.loc[d_, 'tail_count']), 0)
+    chk(f'{d_[:11]} assignments', nass, int(_cp.loc[d_, 'n_assignments']), 0)
+    chk(f'{d_[:11]} ties', 1, int(_cp.loc[d_, 'ties']), 0)
 _ov = pd.read_csv(f'{R}/enrich_lsc_overlap.csv')
 def OV(ref, gs, col):
     r = _ov[(_ov.reference == ref) & (_ov.gene_set == gs)]
@@ -468,30 +476,240 @@ chk('blast alone auroc', 0.450, _sv['blast_alone_auroc'])
 chk('steiger min', 0.11, _sv['steiger_p_min'], 5e-3)
 section('pass8')
 
-# ---- ninth pass: no decimal may be quoted in the text without an assertion above ------
-# The sections above assert values one by one, which says nothing about a number that was
-# added to the text and never checked. This pass reads the manuscript back and requires
-# every decimal in it to appear, at the precision the text uses, as a literal in this file.
+# ---- tenth pass: claims read out of the manuscript rather than transcribed here --------
+# Every assertion above holds a number copied into this file, so an edit to the manuscript
+# that leaves the old number here still passes. A claim() instead reads the value from the
+# sentence that states it and compares that with a source field, keeping the sign, the
+# exponent and the precision the sentence uses, and failing if the sentence no longer
+# matches at all.
+_SUP = {'⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7',
+        '⁸': '8', '⁹': '9', '⁻': '-'}
+_SCI = _re.compile(r'^(-?[\d.]+)\s*×\s*10\s*([⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)$')
+
+
+def _mant_exp(s):
+    s = s.strip().replace('−', '-').replace('–', '-').replace('+', '').replace(',', '')
+    m = _SCI.match(s)
+    if m:
+        return m.group(1), int(''.join(_SUP.get(c, c) for c in m.group(2)))
+    return s, 0
+
+
+def num(s):
+    """A number as the manuscript writes it, Unicode minus and 10-exponents included."""
+    mant, exp = _mant_exp(s)
+    return float(mant) * 10.0 ** exp
+
+
+def ulp(s):
+    """Half a unit in the last place the manuscript wrote, so the quoted rounding passes
+    and any other digit at that place does not."""
+    mant, exp = _mant_exp(s)
+    nd = len(mant.split('.')[1]) if '.' in mant else 0
+    return 0.51 * 10.0 ** (exp - nd)
+
+
+_TXT = {}
+
+
+def mtext(f):
+    if f not in _TXT:
+        _TXT[f] = ' '.join(open(f'/home/holiday01/2026_cm/manuscript/{f}').read().split())
+    return _TXT[f]
+
+
+COVERED = {}
+
+
+def claim(f, pattern, *sources, label=None):
+    """Read the pattern's groups from the manuscript and compare them with the sources."""
+    lab = label or (pattern[:30] + '…')
+    hits = list(_re.finditer(pattern, mtext(f)))
+    if len(hits) != 1:
+        BAD.append((f'{lab} [matched {len(hits)}x]', 1, float(len(hits)))); return
+    m = hits[0]
+    COVERED.setdefault(f, []).append((m.start(), m.end()))
+    got = m.groups()
+    if len(got) != len(sources):
+        BAD.append((f'{lab} [groups]', float(len(sources)), float(len(got)))); return
+    for i, (g, src) in enumerate(zip(got, sources)):
+        chk(f'{lab} [{i + 1}]', num(g), None if src is None else float(src), ulp(g))
+
+
+def bound(f, pattern, source, label=None):
+    """A sentence that states a bound rather than a value. The source must lie under the
+    figure quoted and close enough to it that the bound is not vacuous."""
+    lab = label or (pattern[:30] + '…')
+    hits = list(_re.finditer(pattern, mtext(f)))
+    if len(hits) != 1:
+        BAD.append((f'{lab} [matched {len(hits)}x]', 1, float(len(hits)))); return
+    m = hits[0]
+    COVERED.setdefault(f, []).append((m.start(), m.end()))
+    q = num(m.group(1))
+    chk(f'{lab} [holds]', 1.0, float(source <= q), 0)
+    chk(f'{lab} [tight]', 1.0, float(source > q - 10 * ulp(m.group(1))), 0)
+
+
+_N = r'([+−-]?\d*\.?\d+)'                      # a number as the text may sign it
+_SCIN = r'([\d.]+\s*×\s*10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)'     # a P value in scientific notation
+_S = json.load(open(f'{R}/state_vs_abundance_summary.json'))
+_CP = pd.read_csv(f'{R}/cross_reference_compartment.csv').set_index('definition')
+_XA = pd.read_csv(f'{R}/cross_reference_aggregate.csv').set_index('cell')
+_OVL = pd.read_csv(f'{R}/enrich_lsc_overlap.csv').set_index(['reference', 'gene_set'])
+_OS = rr[rr.analysis == 'overall_survival']
+_SP = pd.read_parquet('/home/holiday01/2026_cm/data/interim/specimens_dx.parquet')
+_RESP = _SP.induction_response
+
+# the cohort, as the abstract states it
+claim('abstract_v3.md',
+      r'analysed ' + _N + r' diagnostic Beat AML specimens, ' + _N +
+      r' with documented induction\s*response \(' + _N + r' complete remission, ' + _N +
+      r' refractory\)',
+      len(_SP), _RESP.notna().sum(), (_RESP == 'CR').sum(), (_RESP == 'Refractory').sum(),
+      label='abstract cohort')
+# the two ranges and the two counts of the headline comparison
+_a = rb[rb.arm == 'armA_sum']
+claim('abstract_v3.md', r'by \+' + _N + r' to \+' + _N + r' in the area under',
+      _a.cv_diff.min(), _a.cv_diff.max(), label='abstract cv range')
+claim('abstract_v3.md', r'in ten of twelve held-out comparisons, from ' + _N + r' to \+' + _N,
+      _a.xwave_diff.min(), _a.xwave_diff.max(), label='abstract xwave range')
+claim('abstract_v3.md',
+      r'arm A reached AUROC ' + _N + r' and arm R ' + _N + r' against ' + _N +
+      r' for the\s*published set \(\*P\* = ' + _N + r' and ' + _N + r' against that set\)',
+      L['cv']['HSC arm A top-99 (chromatin)']['0.01'],
+      L['cv']['HSC arm R top-99 (RNA)']['0.01'],
+      L['cv']['Ng2016 LSC genes (published, experimental)']['0.01'],
+      P('armA_99 vs published_LSC', 0.01, 'nb_p'),
+      P('armR_99 vs published_LSC', 0.01, 'nb_p'), label='abstract 99-gene')
+claim('abstract_v3.md',
+      r'arm A added \+' + _N + r' AUROC \(\*P\* = ' + _N + r'\)',
+      C_('standard panel + chromatin - standard panel', 0.01),
+      Cp('standard panel + chromatin - standard panel', 0.01), label='abstract panel')
+claim('abstract_v3.md',
+      r'ELN 2017 risk category \+' + _N + r' \(\*P\* = ' + _N + r'\)',
+      C_('ELN2017 + chromatin - ELN2017', 0.01),
+      Cp('ELN2017 + chromatin - ELN2017', 0.01), label='abstract ELN')
+
+# the blast readouts, the sentence this round corrected
+claim('results.md',
+      r'blast percentage at Spearman ρ =\s*' + _N + r' \(\*P\* = ' + _N + r'\) in the ' + _N +
+      r' specimens with a recorded percentage',
+      _S['blast_rho_armA'], _S['blast_rho_armA_p'], _S['blast_n'], label='blast rho')
+claim('results.md',
+      r'higher values scored as refractory, separated the two response groups at AUROC ' + _N,
+      _S['blast_alone_auroc'], label='blast AUROC')
+claim('results.md', r'the two scores correlated at Spearman ρ = ' + _N, _S['rho_armA_armR'],
+      label='score correlation')
+claim('results.md', r'all\s*Steiger \*P\* ≥ ' + _N, _S['steiger_p_min'], label='steiger min')
+
+# the compartment comparison, whose P values are exact tail counts
+for _lbl, _d in (('myeloid stem/progenitor', 'narrow'),
+                 ('progenitor, lymphoid included', 'broad')):
+    _r = _CP.loc[_lbl]
+    if _d == 'narrow':
+        claim('results.md',
+              r'programmes led by \+' + _N + r' against \+' + _N +
+              r' for the remaining fourteen, a gap of \+' + _N +
+              r'\s*\(label assignments enumerated, one-sided \*P\* = ' + _N + r'\)',
+              _r.mean_stem, _r.mean_rest, _r.gap, _r.p_one_sided, label='compartment narrow')
+    else:
+        claim('results.md',
+              r'the figures are \+' + _N + r' against \+' + _N + r', a gap of \+' + _N +
+              r'\s*\(one-sided \*P\* = ' + _N + r'\)',
+              _r.mean_stem, _r.mean_rest, _r.gap, _r.p_one_sided, label='compartment broad')
+
+# the published-set comparison
+claim('results.md',
+      r'exceeding the published set by ' + _N + r' and ' + _N + r' \(\*P\* =\s*' + _N +
+      r' and ' + _N + r'\) and by ' + _N + r' and ' + _N,
+      P('armA_99 vs published_LSC', 0.01), P('armA_99 vs published_LSC', 0.1),
+      P('armA_99 vs published_LSC', 0.01, 'nb_p'), P('armA_99 vs published_LSC', 0.1, 'nb_p'),
+      P('armA_99 vs published_LSC', 0.01, 'xwave_diff'),
+      P('armA_99 vs published_LSC', 0.1, 'xwave_diff'), label='armA vs published')
+claim('results.md',
+      r'expression specificity reached ' + _N + r' and ' + _N + r',\s*exceeding the published '
+      r'set by ' + _N + r' and ' + _N + r' \(\*P\* = ' + _N + r' and ' + _N + r'\)',
+      L['cv']['HSC arm R top-99 (RNA)']['0.01'], L['cv']['HSC arm R top-99 (RNA)']['0.1'],
+      P('armR_99 vs published_LSC', 0.01), P('armR_99 vs published_LSC', 0.1),
+      P('armR_99 vs published_LSC', 0.01, 'nb_p'), P('armR_99 vs published_LSC', 0.1, 'nb_p'),
+      label='armR vs published')
+claim('results.md', r'bootstrap interval was \+' + _N + r' to \+' + _N,
+      P('armA_99 vs published_LSC', 0.01, 'boot_lo'),
+      P('armA_99 vs published_LSC', 0.01, 'boot_hi'), label='armA boot interval')
+
+# the overlap with the published gene list, including the exponents
+claim('results.md',
+      r'with ' + _N + r' of ' + _N + r' for the\s*accessibility rule \(odds ratio ' + _N +
+      r', \*P\* = ' + _SCIN + r'\) and ' + _N + r' of ' + _N + r' for the expression\s*rule '
+      r'\(odds ratio ' + _N + r', \*P\* = ' + _SCIN + r'\)',
+      _OVL.loc[('Ng2016_LSC104', 'armA_HSC'), 'overlap'],
+      _OVL.loc[('Ng2016_LSC104', 'armA_HSC'), 'n_ref_in_pool'],
+      _OVL.loc[('Ng2016_LSC104', 'armA_HSC'), 'odds'],
+      _OVL.loc[('Ng2016_LSC104', 'armA_HSC'), 'p'],
+      _OVL.loc[('Ng2016_LSC104', 'armR_HSC'), 'overlap'],
+      _OVL.loc[('Ng2016_LSC104', 'armR_HSC'), 'n_ref_in_pool'],
+      _OVL.loc[('Ng2016_LSC104', 'armR_HSC'), 'odds'],
+      _OVL.loc[('Ng2016_LSC104', 'armR_HSC'), 'p'], label='LSC104 overlap')
+claim('results.md', r'ChEA terms at FDR < 0.05 \(' + _N + r' versus ' + _N + r'\)',
+      int(((_E.library == 'ChEA_2022') & (_E.gene_set == 'armR_HSC') & (_E.q < 0.05)).sum()),
+      int(((_E.library == 'ChEA_2022') & (_E.gene_set == 'armA_HSC') & (_E.q < 0.05)).sum()),
+      label='ChEA counts')
+
+# overall survival
+claim('results.md',
+      r'exceeded the\s*expression rule in ' + _N + r' of 12 cross-validated comparisons of '
+      r"Harrell's concordance index,\s*with differences between " + _N + r' and \+' + _N,
+      int((_OS['diff'] > 0).sum()), _OS['diff'].min(), _OS['diff'].max(), label='survival')
+# the two sentences that state how close the link-count arm comes, as a bound
+_lkx = rr[(rr.analysis == 'link_count') & (rr.reference != 'BMMC')]
+for _f, _pat in (('results.md', r'the two were within ' + _N + r' of each other'),
+                 ('discussion.md', r'within ' + _N + r' of it in both leukaemia')):
+    bound(_f, _pat, float(_lkx['diff'].abs().max()), label=f'{_f[:4]} link-count bound')
+section('pass10')
+
+# ---- ninth pass: which decimals in the text are checked, and which are only present ----
+# A decimal is bound if a claim() in pass10 read it out of the sentence that states it.
+# Otherwise this pass can only ask whether the value appears as a literal somewhere in this
+# file, which a comment or an unrelated tolerance also satisfies, so a literal-only number
+# is reported as weakly covered rather than treated as checked. Uncovered decimals fail.
 _MD = ('abstract_v3.md', 'introduction.md', 'methods.md', 'results.md', 'discussion.md',
-       'figure_legends.md')
-_ALLOW = {  # the penalty grid, the FDR and significance thresholds, library versions
-    '0.001', '0.01', '0.1', '0.05', '3.11', '2.4', '1.17', '2.3', '1.8', '0.12',
+       'figure_legends.md', 'supplementary_methods.md')
+# An exemption is bound to the sentence that uses the number and to the role it plays
+# there, not to the value, so that a result which happens to equal a penalty or a
+# threshold is not waved through.
+_EXEMPT = (
+    r'C (?:∈|in) \{0\.001, 0\.01, 0\.1, 1\}',              # the penalty grid
+    r'Python [\d.]+ \((?:[A-Za-z-]+ [\d.]+(?:, )?)+\)',     # the library versions
+    r'(?:\*P\*|P) [<≥] 0\.05', r'FDR < 0\.05',             # significance thresholds
+    r'false discovery rate below 0\.25',
+    r'window 100, 250 or 500 kb, threshold 0\.20, 0\.30 or 0\.40',
+    r'correlation threshold of 0\.30',
     # the two cross-modal discard percentages are printed by the reference build and are
     # not re-derivable without rebuilding the reference, which would move every result
-    '8.5', '9.1'}
-_self = open('/home/holiday01/2026_cm/scripts/check_reported_numbers.py').read()
+    r'a further 8\.5% and 9\.1%')
+_self = open(__file__).read()   # the running copy, so a comment cannot be added unseen
 _lits = [float(x) for x in _re.findall(r'(?<![\w.])\d+\.\d+', _self)]
+_bound = _weak = 0
 _uncovered = []
+_exempt_spans = {_f: [(_m.start(), _m.end()) for _p in _EXEMPT
+                      for _m in _re.finditer(_p, mtext(_f))] for _f in _MD}
 for _f in _MD:
-    _t = open(f'/home/holiday01/2026_cm/manuscript/{_f}').read()
+    _t = mtext(_f)
     for _m in _re.finditer(r'(?<![\w.])(\d+\.\d+)', _t):
         _s = _m.group(1)
-        if _s in _ALLOW:
+        if any(_a <= _m.start() < _b for _a, _b in COVERED.get(_f, ())):
+            _bound += 1
+            continue
+        if any(_a <= _m.start() < _b for _a, _b in _exempt_spans[_f]):
             continue
         _nd = len(_s.split('.')[1])
-        if not any(abs(round(_v, _nd) - float(_s)) < 1e-12 for _v in _lits):
-            _uncovered.append(f'{_f}:{_s}')
-chk('decimals quoted with no assertion', 0, len(_uncovered), 0)
+        if any(abs(round(_v, _nd) - float(_s)) < 1e-12 for _v in _lits):
+            _weak += 1
+            continue
+        _uncovered.append(f'{_f}:{_s}')
+chk('decimals with no assertion at all', 0, len(_uncovered), 0)
+print(f'  {_bound} decimals read out of the text by a claim, {_weak} present only as a '
+      f'literal, {len(_uncovered)} neither')
 if _uncovered:
     print('  uncovered:', ', '.join(_uncovered))
 section('pass9')
