@@ -8,7 +8,7 @@ audit_supplementary.rd, .rj or .book for the duration of one call.
 Each case names the false negative it exists to prevent, so a later rewrite that
 reintroduces one is caught here rather than in review.
 """
-import copy, importlib.util, io, json, sys
+import copy, importlib.util, io, json, re, sys
 import pandas as pd
 
 ROOT = '/home/holiday01/2026_cm'
@@ -17,7 +17,7 @@ _spec = importlib.util.spec_from_file_location('audit_supplementary',
                                                f'{ROOT}/scripts/audit_supplementary.py')
 A = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(A)
-_rd, _rj, _book = A.rd, A.rj, A.book
+_rd, _rj, _book, _text = A.rd, A.rj, A.book, A.main_text
 CASES = []
 
 
@@ -83,14 +83,14 @@ def c3():
 
 @case('a sheet loses every performance column')
 def c4():
-    A.book = patch_sheet('S5_connectivity_audit',
+    A.book = patch_sheet('S12_connectivity_audit',
                          lambda d: d.drop(columns=[c for c in d.columns
                                                    if 'AUROC' in c]))
 
 
 @case('a sheet loses its difference columns')
 def c5():
-    A.book = patch_sheet('S2_per_program',
+    A.book = patch_sheet('S9_per_programme',
                          lambda d: d.drop(columns=[c for c in d.columns
                                                    if 'minus' in c]))
 
@@ -100,18 +100,18 @@ def c6():
     def m(d):
         d['beats'] = 1
         return d
-    A.book = patch_sheet('S6a_permuted_link_nulls', m)
+    A.book = patch_sheet('S13_permuted_link_nulls', m)
 
 
 @case('one arm loses its performance column while the other keeps it')
 def c6b():
-    A.book = patch_sheet('S4_budget_sweep',
+    A.book = patch_sheet('S10_budget_sweep',
                          lambda d: d.drop(columns=['R_cv_AUROC_C0.01']))
 
 
 @case('a column is renamed back to something cryptic')
 def c6c():
-    A.book = patch_sheet('S2_per_program',
+    A.book = patch_sheet('S9_per_programme',
                          lambda d: d.rename(columns={'A_minus_R_cv_C0.01': 'cv_0.01'}))
 
 
@@ -120,7 +120,7 @@ def c6d():
     def m(d):
         c = list(d.columns)
         return d[[c[1], c[0]] + c[2:]]
-    A.book = patch_sheet('S12b_cohort_composition', m)
+    A.book = patch_sheet('S2_cohort_composition', m)
 
 
 @case('a link-count draw is missing from one reference')
@@ -141,7 +141,7 @@ def c8():
 
 @case('a sheet becomes empty')
 def c9():
-    A.book = patch_sheet('S12a_inclusion_flow', lambda d: d.iloc[0:0])
+    A.book = patch_sheet('S1_inclusion_flow', lambda d: d.iloc[0:0])
 
 
 @case('a penalty is replaced by another, so the count is unchanged')
@@ -177,6 +177,30 @@ def c14():
     A.rj = patch_json('confound_programs_aml_all_v3.json', m)
 
 
+def patch_text(mutate):
+    """Serve the main document with one callout changed."""
+    return lambda: mutate(_text())
+
+
+@case('a supplementary table is never cited in the main text')
+def c15():
+    A.main_text = patch_text(lambda s: s.replace('(Table S13)', ''))
+
+
+@case('two supplementary tables are cited out of order')
+def c16():
+    # a true swap: both tables stay cited exactly once, only the order changes, so this
+    # case fails if the audit checks presence but not order
+    def m(s):
+        return re.sub(r'\bS1[56]\b', lambda x: 'S16' if x.group(0) == 'S15' else 'S15', s)
+    A.main_text = patch_text(m)
+
+
+@case('the main text cites a supplementary table that does not exist')
+def c17():
+    A.main_text = patch_text(lambda s: s.replace('(Table S13)', '(Table S19)'))
+
+
 @case('a source output goes missing')
 def c10():
     def rj(f):
@@ -187,7 +211,7 @@ def c10():
 
 # positive control: good data must still pass
 def control():
-    A.rd, A.rj, A.book = _rd, _rj, _book
+    A.rd, A.rj, A.book, A.main_text = _rd, _rj, _book, _text
     return A.main(verbose=False)
 
 
@@ -201,13 +225,13 @@ if __name__ == '__main__':
 
     print('\ninjected failures, each must be rejected')
     for name, setup in CASES:
-        A.rd, A.rj, A.book = _rd, _rj, _book
+        A.rd, A.rj, A.book, A.main_text = _rd, _rj, _book, _text
         setup()
         try:
             bad = A.main(verbose=False)
         except Exception as e:
             bad = [('raised', f'{type(e).__name__}: {e}')]
-        A.rd, A.rj, A.book = _rd, _rj, _book
+        A.rd, A.rj, A.book, A.main_text = _rd, _rj, _book, _text
         caught = bool(bad)
         ok &= caught
         print(f'  [{"caught " if caught else "MISSED "}] {name}')

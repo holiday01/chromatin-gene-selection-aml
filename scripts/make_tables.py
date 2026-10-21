@@ -85,8 +85,8 @@ for lib,n in [('TRRUST_Transcription_Factors_2019',4),('ChEA_2022',4),('GO_Biolo
         for _,x in g.iterrows():
             r2.append(dict(Library=lib.replace('_2019','').replace('_2022','').replace('_2023','').replace('_',' '),
                            Arm='A (chromatin)' if s_=='armA_HSC' else 'R (expression)',
-                           Term=x.term[:58], Overlap=int(x.n_overlap),
-                           OddsRatio=round(x.odds,1) if np.isfinite(x.odds) else np.inf,
+                           Term=x.term, Overlap=int(x.n_overlap),
+                           OddsRatio=round(x.odds,1) if np.isfinite(x.odds) else '∞',
                            P=f'{x.p:.2g}', FDR=f'{x.q:.2g}'))
 for _,x in O[O.gene_set.isin(['armA_HSC','armR_HSC'])].iterrows():
     r2.append(dict(Library=f'Overlap with {x.reference}',

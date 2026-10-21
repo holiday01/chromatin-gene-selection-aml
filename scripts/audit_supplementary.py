@@ -9,8 +9,9 @@ that reads as performance.
 
 This script parses the reference-by-penalty table of the supplementary methods and checks
 every machine-checkable row against the outputs, checks that each sheet of the workbook has
-a legend and each legend a sheet, and checks that a legend promising a performance figure
-sits on a sheet that holds one. A row it cannot check mechanically is reported as DECLARED
+a legend and each legend a sheet, that every sheet carries exactly the columns declared for
+it in the order declared, and that the main text cites every supplementary table in
+ascending order of first appearance. A row it cannot check mechanically is reported as DECLARED
 rather than passed silently.
 
 Every check returns the penalties it found per reference, not a count pooled over
@@ -44,6 +45,14 @@ def rj(f):
 def book():
     """Open the submission workbook. Replaced by the fault-injection test."""
     return pd.ExcelFile(BOOK)
+
+
+MAIN = ('introduction.md', 'methods.md', 'results.md', 'discussion.md', 'figure_legends.md')
+
+
+def main_text():
+    """The main document in reading order. Replaced by the fault-injection test."""
+    return '\n'.join(open(f'{M}/{f}').read() for f in MAIN)
 
 
 def _try(fn, *a):
@@ -249,24 +258,24 @@ NOT_CHECKABLE = {
 # statistics. Changing a column here is deliberate; the audit then records the submission's
 # schema. A sheet with no declaration fails.
 SHEET_COLUMNS = {
-    'S1': ['reference', 'arm', 'rank', 'gene', 'selection_score', 'n_linked_peaks', 'in_Ng2016_LSC104', 'in_Ng2016_LSC17'],
-    'S2': ['reference', 'program', 'lineage', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
-    'S3': ['tag', 'window', 'min_r', 'top_m', 'n_links', 'eligible', 'nA', 'nR', 'armA_cv_AUROC_C0.001', 'armA_cv_AUROC_C0.01', 'armA_cv_AUROC_C0.1', 'armA_cv_AUROC_C1', 'armR_cv_AUROC_C0.001', 'armR_cv_AUROC_C0.01', 'armR_cv_AUROC_C0.1', 'armR_cv_AUROC_C1', 'variance_matched_cv_AUROC_C0.001', 'variance_matched_cv_AUROC_C0.01', 'variance_matched_cv_AUROC_C0.1', 'variance_matched_cv_AUROC_C1'],
-    'S4': ['reference', 'k', 'n_A', 'A_cv_AUROC_C0.01', 'R_cv_AUROC_C0.01', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_cv_AUROC_C0.1', 'R_cv_AUROC_C0.1', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
-    'S5': ['reference', 'measure', 'arm', 'n', 'n_links', 'mean_r', 'span_kb', 'peak_density', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
-    'S6a': ['null', 'setting', 'n_permutations', 'real_cv_AUROC', 'null_cv_AUROC_mean', 'null_cv_AUROC_sd', 'empirical_p_cv', 'real_xwave_AUROC', 'null_xwave_AUROC_mean', 'n_perms_real_higher_xwave', 'gene_overlap_median', 'gene_overlap_min', 'gene_overlap_max', 'distinct_peaks_real', 'distinct_peaks_permuted_median'],
-    'S6b': ['arm', 'gene_overlap_with_armA', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
-    'S7a': ['gene_set', 'library', 'term', 'enrichr_p', 'odds_ratio', 'enrichr_combined_score', 'enrichr_q_BH', 'n_overlap', 'genes'],
-    'S7b': ['reference', 'n_ref_in_pool', 'gene_set', 'n_in_gene_set', 'n_overlap', 'n_overlap_expected', 'odds_ratio', 'fisher_one_sided_p', 'genes'],
-    'S8a': ['symbol', 'entrez', 'log2fc', 'signature'],
-    'S8b': ['table_symbol', 'entrez', 'signature', 'current', 'beataml'],
-    'S9a': ['reference', 'arm', 'endpoint', 'n', 'events', 'cv_cindex_alpha1.0', 'cv_cindex_alpha0.1', 'xwave_cindex_alpha1.0', 'xwave_cindex_alpha0.1'],
-    'S9b': ['reference', 'alpha', 'A_minus_R_cindex', 'corrected_t', 'corrected_p'],
-    'S10': ['C', 'quantity', 'AUROC', 'delta_AUROC', 'comparison', 'corrected_t', 'corrected_p'],
-    'S11a': ['reference_and_penalty', 'n_programmes', 'n_programmes_favouring_armA', 'mean_A_minus_R', 'median_A_minus_R', 'sign_test_p_over_programmes', 'wilcoxon_signedrank_p_over_programmes'],
-    'S11b': ['healthy_programme', 'malignant_programme', 'healthy_A_minus_R_C0.01', 'malignant_A_minus_R_C0.01', 'healthy_A_minus_R_C0.1', 'malignant_A_minus_R_C0.1', 'mean_over_four_cv_cells', 'positive_in_all_four', 'myeloid_stem_progenitor'],
-    'S12a': ['step', 'n'],
-    'S12b': ['variable', 'denominator', 'excluded', 'retained'],
+    'S1': ['step', 'n'],
+    'S2': ['variable', 'denominator', 'excluded', 'retained'],
+    'S3': ['healthy_programme', 'malignant_programme', 'healthy_A_minus_R_C0.01', 'malignant_A_minus_R_C0.01', 'healthy_A_minus_R_C0.1', 'malignant_A_minus_R_C0.1', 'mean_over_four_cv_cells', 'positive_in_all_four', 'myeloid_stem_progenitor'],
+    'S4': ['tag', 'window', 'min_r', 'top_m', 'n_links', 'eligible', 'nA', 'nR', 'armA_cv_AUROC_C0.001', 'armA_cv_AUROC_C0.01', 'armA_cv_AUROC_C0.1', 'armA_cv_AUROC_C1', 'armR_cv_AUROC_C0.001', 'armR_cv_AUROC_C0.01', 'armR_cv_AUROC_C0.1', 'armR_cv_AUROC_C1', 'variance_matched_cv_AUROC_C0.001', 'variance_matched_cv_AUROC_C0.01', 'variance_matched_cv_AUROC_C0.1', 'variance_matched_cv_AUROC_C1'],
+    'S5': ['symbol', 'entrez', 'log2fc', 'signature'],
+    'S6': ['table_symbol', 'entrez', 'signature', 'current', 'beataml'],
+    'S7': ['reference', 'arm', 'rank', 'gene', 'selection_score', 'n_linked_peaks', 'in_Ng2016_LSC104', 'in_Ng2016_LSC17'],
+    'S8': ['reference_and_penalty', 'n_programmes', 'n_programmes_favouring_armA', 'mean_A_minus_R', 'median_A_minus_R', 'sign_test_p_over_programmes', 'wilcoxon_signedrank_p_over_programmes'],
+    'S9': ['reference', 'program', 'lineage', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
+    'S10': ['reference', 'k', 'n_A', 'A_cv_AUROC_C0.01', 'R_cv_AUROC_C0.01', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_cv_AUROC_C0.1', 'R_cv_AUROC_C0.1', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
+    'S11': ['C', 'quantity', 'AUROC', 'delta_AUROC', 'comparison', 'corrected_t', 'corrected_p'],
+    'S12': ['reference', 'measure', 'arm', 'n', 'n_links', 'mean_r', 'span_kb', 'peak_density', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
+    'S13': ['null', 'setting', 'n_permutations', 'real_cv_AUROC', 'null_cv_AUROC_mean', 'null_cv_AUROC_sd', 'empirical_p_cv', 'real_xwave_AUROC', 'null_xwave_AUROC_mean', 'n_perms_real_higher_xwave', 'gene_overlap_median', 'gene_overlap_min', 'gene_overlap_max', 'distinct_peaks_real', 'distinct_peaks_permuted_median'],
+    'S14': ['arm', 'gene_overlap_with_armA', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
+    'S15': ['reference', 'n_ref_in_pool', 'gene_set', 'n_in_gene_set', 'n_overlap', 'n_overlap_expected', 'odds_ratio', 'fisher_one_sided_p', 'genes'],
+    'S16': ['gene_set', 'library', 'term', 'enrichr_p', 'odds_ratio', 'enrichr_combined_score', 'enrichr_q_BH', 'n_overlap', 'genes'],
+    'S17': ['reference', 'arm', 'endpoint', 'n', 'events', 'cv_cindex_alpha1.0', 'cv_cindex_alpha0.1', 'xwave_cindex_alpha1.0', 'xwave_cindex_alpha0.1'],
+    'S18': ['reference', 'alpha', 'A_minus_R_cindex', 'corrected_t', 'corrected_p'],
 }
 
 
@@ -368,6 +377,32 @@ def check_legends(text, bad):
     return len(sheets), len(legends)
 
 
+def check_callouts(bad, sheet_ids, verbose):
+    """A supplementary table a reader is never sent to, or sent to out of order, is a defect
+    of the submission even when every sheet and legend is correct. Numbering follows first
+    citation, so the order of first appearance must be 1, 2, 3, ... with nothing skipped."""
+    text = main_text()
+    seen = []
+    for m in re.finditer(r'\bS(\d+)\b', text):
+        n = int(m.group(1))
+        if n not in seen: seen.append(n)
+    have = sorted(int(s[1:]) for s in sheet_ids)
+    bogus = [n for n in seen if n not in have]
+    if bogus:
+        bad.append(('callouts', f'the main text cites supplementary tables that do not '
+                                f'exist: {bogus}'))
+    missing = [n for n in have if n not in seen]
+    if missing:
+        bad.append(('callouts', f'supplementary tables never cited in the main text: '
+                                f'{missing}'))
+    if seen != sorted(seen):
+        bad.append(('callouts', f'supplementary tables are not cited in ascending order of '
+                                f'first appearance: {seen}'))
+    if verbose:
+        print(f'\nsupplementary callouts, in order of first appearance: {seen}')
+    return seen
+
+
 def main(verbose=True):
     bad, declared = [], []
     text = open(SM).read()
@@ -379,6 +414,7 @@ def main(verbose=True):
     try:
         ns, nl = check_legends(text, bad)
         if verbose: print(f'\nworkbook sheets {ns} | table legends {nl}')
+        check_callouts(bad, [s.split('_')[0] for s in book().sheet_names], verbose)
     except Exception as e:
         bad.append(('legends', f'the workbook could not be read: {type(e).__name__}: {e}'))
     if verbose:

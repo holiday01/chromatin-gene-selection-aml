@@ -305,7 +305,61 @@ for C in ('cv_0.01', 'cv_0.1'):
 chk('subset gap min', 0.055, min(gaps), 6e-4)
 chk('subset gap max', 0.072, max(gaps), 6e-4)
 chk('subset gap all positive', 10, sum(g > 0 for g in gaps), 0)
+# the figure draws C=0.01 alone, so the legend and the results sentence quote that penalty
+_g01 = []
+for sz in sorted(dt['size'].unique()):
+    q = dt[dt['size'] == sz].set_index('arm')
+    _g01.append(float(q.loc['random-in-A', 'cv_0.01'] - q.loc['random-in-pool', 'cv_0.01']))
+chk('subset gap min C=0.01', 0.055, min(_g01), 6e-4)
+chk('subset gap max C=0.01', 0.068, max(_g01), 6e-4)
+# random subsets against the top-ranked subset of the same size
+for C, want in (('cv_0.01', 0.023), ('cv_0.1', 0.031)):
+    d_ = []
+    for sz in sorted(dt['size'].unique()):
+        q = dt[dt['size'] == sz].set_index('arm')
+        d_.append(abs(float(q.loc['random-in-A', C] - q.loc['top-k', C])))
+    chk(f'random within 0.0x of top-k {C}', want, max(d_), 1e-3)
+    chk(f'random within the quoted bound {C}', 1, int(max(d_) <= want), 0)
+# at 25 genes the top-ranked subset is the weakest at C=0.01 and the strongest at C=0.1
+_q25 = dt[dt['size'] == 25].set_index('arm')
+chk('25 genes top-k weakest at C=0.01', 1,
+    int(_q25.loc['top-k', 'cv_0.01'] < min(_q25.loc['bottom-k', 'cv_0.01'],
+                                           _q25.loc['random-in-A', 'cv_0.01'])), 0)
+chk('25 genes top-k strongest at C=0.1', 1,
+    int(_q25.loc['top-k', 'cv_0.1'] > max(_q25.loc['bottom-k', 'cv_0.1'],
+                                          _q25.loc['random-in-A', 'cv_0.1'])), 0)
 section('pass6')
+
+# ---- the denominators and counts quoted in the Table 1 note ---------------------------
+import re as _re
+_spec = pd.read_parquet('/home/holiday01/2026_cm/data/interim/specimens_dx.parquet')
+_cl = (pd.read_excel('/home/holiday01/2026_cm/data/raw/beataml2/beataml_wv1to4_clinical.xlsx')
+         .drop_duplicates('dbgap_rnaseq_sample').set_index('dbgap_rnaseq_sample'))
+_S = _spec.set_index('dbgap_rnaseq_sample'); _i = _S.index
+_n = lambda s: pd.to_numeric(s, errors='coerce')
+_note = ' '.join(open('/home/holiday01/2026_cm/manuscript/table_notes.py').read().split())
+_m = _re.search(r'Age is recorded for (\d+) of the (\d+) specimens, bone-marrow blasts for '
+                r'(\d+) and the white cell count for (\d+)', _note)
+chk('note parses', 1, int(_m is not None), 0)
+if _m:
+    chk('note age n', int(_m.group(1)), int(_n(_cl.reindex(_i).ageAtDiagnosis).notna().sum()), 0)
+    chk('note cohort n', int(_m.group(2)), len(_i), 0)
+    chk('note blast n', int(_m.group(3)), int(_n(_cl.reindex(_i)['%.Blasts.in.BM']).notna().sum()), 0)
+    chk('note wbc n', int(_m.group(4)), int(_n(_cl.reindex(_i).wbcCount).notna().sum()), 0)
+_m2 = _re.search(r'survival rows use the (\d+) specimens with a follow-up time above zero', _note)
+chk('note survival parses', 1, int(_m2 is not None), 0)
+if _m2:
+    chk('note survival n', int(_m2.group(1)), int((_n(_S.overallSurvival) > 0).sum()), 0)
+_m3 = _re.search(r'includes the (\d+) specimens whose source label is Complete Response i', _note)
+chk('note CRi parses', 1, int(_m3 is not None), 0)
+if _m3:
+    chk('note CRi n', int(_m3.group(1)),
+        int((_cl.reindex(_i)['responseToInductionTx'] == 'Complete Response i').sum()), 0)
+_m4 = _re.search(r'of which (\d+) carry a binary\s*induction-response label', _note)
+chk('note labelled parses', 1, int(_m4 is not None), 0)
+if _m4:
+    chk('note labelled n', int(_m4.group(1)), int(_S.induction_response.notna().sum()), 0)
+section('pass7')
 
 print(f'\ntotal: {len(ALL)} mismatch across all sections')
 sys.exit(1 if ALL else 0)
