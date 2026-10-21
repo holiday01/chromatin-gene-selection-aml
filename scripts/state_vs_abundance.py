@@ -73,4 +73,16 @@ for nm,v in READ.items():
     rows.append(dict(readout=nm,n=int(n),rho_armA=r12,rho_armR=r13,abs_diff=abs(r13)-abs(r12),steiger_p=p))
 print(f'\nrho(arm A score, arm R score) = {stats.spearmanr(sA,sR).statistic:+.3f}')
 pd.DataFrame(rows).to_csv(f'{ROOT}/results/state_vs_abundance.csv',index=False)
-print('wrote results/state_vs_abundance.csv')
+# the scalars the manuscript quotes from this analysis, so that they have a producer and
+# not only a line of standard output
+mb=np.isfinite(blast)
+summary=dict(auroc_armA=aucA, auroc_armR=aucR,
+             rho_armA_armR=float(stats.spearmanr(sA,sR).statistic),
+             blast_n=int(mb.sum()),
+             blast_rho_armA=float(stats.spearmanr(sA[mb],blast[mb]).statistic),
+             blast_rho_armA_p=float(stats.spearmanr(sA[mb],blast[mb]).pvalue),
+             blast_alone_auroc=float(roc_auc_score(y[mb],blast[mb])),
+             steiger_p_min=float(min(r['steiger_p'] for r in rows)))
+json.dump(summary, open(f'{ROOT}/results/state_vs_abundance_summary.json','w'), indent=1)
+print('\n'+json.dumps(summary, indent=1))
+print('wrote results/state_vs_abundance.csv and results/state_vs_abundance_summary.json')

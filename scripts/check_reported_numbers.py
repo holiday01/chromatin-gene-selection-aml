@@ -1,5 +1,10 @@
 """Assert every number the manuscript quotes against the files that produced it.
 
+The ninth pass reads the manuscript back and requires every decimal in it to appear, at
+the precision the text uses, as a literal in this file. That is a tripwire for a number
+added to the text and never checked, not proof that each number is tied to the right
+artefact; the passes above do that one value at a time.
+
 Each chk() call carries the value as written in the text and the expression that reads it
 back out of results/. A mismatch prints both and the script exits non-zero, so a rerun
 that moves a number cannot pass unnoticed.
@@ -376,6 +381,120 @@ chk('note labelled parses', 1, int(_m4 is not None), 0)
 if _m4:
     chk('note labelled n', int(_m4.group(1)), int(_S.induction_response.notna().sum()), 0)
 section('pass7')
+
+# ---- eighth pass: the published-set, component, cross-reference and gene-level numbers
+#      that no assertion covered before this round -------------------------------------
+L17 = json.load(open(f'{R}/baseline_lsc17.json'))
+for C, d, pv, xw in ((0.01, 0.087, 0.0003, 0.136), (0.1, 0.099, 0.0008, 0.083)):
+    chk(f'A-pub cv {C}', d, P('armA_99 vs published_LSC', C))
+    chk(f'A-pub p {C}', pv, P('armA_99 vs published_LSC', C, 'nb_p'))
+    chk(f'A-pub xw {C}', xw, P('armA_99 vs published_LSC', C, 'xwave_diff'))
+for C, d, pv in ((0.01, 0.064, 0.012), (0.1, 0.058, 0.069)):
+    chk(f'R-pub cv {C}', d, P('armR_99 vs published_LSC', C))
+    chk(f'R-pub p {C}', pv, P('armR_99 vs published_LSC', C, 'nb_p'))
+chk('A-pub boot lo', 0.045, P('armA_99 vs published_LSC', 0.01, 'boot_lo'))
+chk('A-pub boot hi', 0.236, P('armA_99 vs published_LSC', 0.01, 'boot_hi'))
+for C, v in ((0.01, 0.750), (0.1, 0.740)):
+    chk(f'armR99 {C}', v, L['cv']['HSC arm R top-99 (RNA)'][str(C)])
+for C, v in ((0.01, 0.711), (0.1, 0.699)):
+    chk(f'top99 by variance {C}', v, L['cv']['top-99 by variance'][str(C)])
+_vm = [v for k, v in L['cv'].items() if k.startswith('var-matched random')]
+chk('var-matched draws', 20, len(_vm), 0)
+for C, v in ((0.01, 0.714), (0.1, 0.690)):
+    chk(f'var-matched mean {C}', v, float(np.mean([d[str(C)] for d in _vm])))
+for nm, key, vals in (('armR17', 'HSC arm R top-17 (RNA)', (0.681, 0.676)),
+                      ('armA17', 'HSC arm A top-17 (chromatin)', (0.627, 0.655))):
+    for C, v in zip((0.01, 0.1), vals):
+        chk(f'{nm} {C}', v, L17['cv'][key][str(C)])
+for C, d, pv in ((0.01, -0.035, 0.35), (0.1, -0.015, 0.70)):
+    chk(f'A17-LSC17 {C}', d, P('armA_17 vs LSC17', C))
+    chk(f'A17-LSC17 p {C}', pv, P('armA_17 vs LSC17', C, 'nb_p'), 6e-3)
+chk('locus_mean 0.1', 0.731, lo['cv']['locus_mean (no linking)']['0.1'])
+chk('armA200 full 0.1', 0.769, L17['cv']['HSC arm A 200 (ours, full)']['0.1'])
+for C, pv, d in ((0.01, 0.13, 0.002), (0.1, 0.21, 0.008)):
+    chk(f'A-locus p {C}', pv, P('armA_200 vs locus_mean_200', C, 'nb_p'), 6e-3)
+    chk(f'locus-R {C}', d, P('locus_mean_200 vs armR_200', C))
+for C, sd in (('0.01', 0.012), ('0.1', 0.019)):
+    chk(f'win sd {C}', sd, lpw[f'window_C{C}']['null_cv_sd'])
+_lk = rr[(rr.analysis == 'link_count') & (rr.reference == 'BMMC')].set_index('C')
+for C, d, pv in ((0.01, 0.062, 0.003), (0.1, 0.068, 0.023)):
+    chk(f'A-linkcount {C}', d, float(_lk.loc[C, 'diff']))
+    chk(f'A-linkcount p {C}', pv, float(_lk.loc[C, 'nb_p']))
+_xa = pd.read_csv(f'{R}/cross_reference_aggregate.csv').set_index('cell')
+for cell, mu in (('BMMC C=0.01', -0.001), ('BMMC C=0.1', 0.005),
+                 ('AML-mal C=0.01', 0.025), ('AML-mal C=0.1', 0.031)):
+    chk(f'xref mean {cell}', mu, float(_xa.loc[cell, 'mean']))
+chk('xref wilcoxon BMMC C=0.1', 0.44, float(_xa.loc['BMMC C=0.1', 'wilcoxon_p']), 6e-3)
+_xp = pd.read_csv(f'{R}/cross_reference_programs.csv').set_index('bmmc')
+chk('CD4 naive healthy', -0.0385, float(_xp.loc['CD4+ T naive', 'b001']))
+chk('CD4 naive malignant', 0.0972, float(_xp.loc['CD4+ T naive', 'a001']))
+# the two compartment definitions; their permutation P values are Monte Carlo, so they are
+# read from the run that produced them rather than reproduced with another random stream
+_cp = pd.read_csv(f'{R}/cross_reference_compartment.csv').set_index('definition')
+for d_, mu, rest, gap, pv, ap in (
+        ('myeloid stem/progenitor', 0.0412, 0.0089, 0.0323, 0.023, 3),
+        ('progenitor, lymphoid included', 0.0376, 0.0075, 0.0301, 0.014, 3)):
+    chk(f'{d_[:11]} stem mean', mu, float(_cp.loc[d_, 'mean_stem']))
+    chk(f'{d_[:11]} rest mean', rest, float(_cp.loc[d_, 'mean_rest']))
+    chk(f'{d_[:11]} gap', gap, float(_cp.loc[d_, 'gap']))
+    chk(f'{d_[:11]} one-sided p', pv, float(_cp.loc[d_, 'p_one_sided']))
+    chk(f'{d_[:11]} allpos', ap, int(_cp.loc[d_, 'allpos_stem']), 0)
+_ov = pd.read_csv(f'{R}/enrich_lsc_overlap.csv')
+def OV(ref, gs, col):
+    r = _ov[(_ov.reference == ref) & (_ov.gene_set == gs)]
+    return float(r[col].iloc[0]) if len(r) else None
+chk('LSC104 in pool', 73, OV('Ng2016_LSC104', 'armA_HSC', 'n_ref_in_pool'), 0)
+chk('LSC17 in pool', 11, OV('Ng2016_LSC17', 'armA_HSC', 'n_ref_in_pool'), 0)
+for gs, ov, odds, pv in (('armA_HSC', 12, 7.9, 2.8e-7), ('armR_HSC', 11, 7.1, 2.2e-6)):
+    chk(f'LSC104 overlap {gs}', ov, OV('Ng2016_LSC104', gs, 'overlap'), 0)
+    chk(f'LSC104 odds {gs}', odds, OV('Ng2016_LSC104', gs, 'odds'), 0.05)
+    chk(f'LSC104 p {gs}', pv, OV('Ng2016_LSC104', gs, 'p'), 5e-8)
+chk('LSC17 overlap armA', 5, OV('Ng2016_LSC17', 'armA_HSC', 'overlap'), 0)
+chk('LSC17 overlap armR', 4, OV('Ng2016_LSC17', 'armR_HSC', 'overlap'), 0)
+_E = pd.read_csv(f'{R}/enrich_enrichr.csv')
+NSIG = lambda lib, gs: int(((_E.library == lib) & (_E.gene_set == gs) & (_E.q < 0.05)).sum())
+chk('ChEA armR sig', 186, NSIG('ChEA_2022', 'armR_HSC'), 0)
+chk('ChEA armA sig', 120, NSIG('ChEA_2022', 'armA_HSC'), 0)
+chk('GO armA sig', 9, NSIG('GO_Biological_Process_2023', 'armA_HSC'), 0)
+chk('GO armR sig', 2, NSIG('GO_Biological_Process_2023', 'armR_HSC'), 0)
+chk('A99 shared with published', 11, len(_armA & {_inv[j] for j in _pub}), 0)
+# the two scores against each other and against the abundance readouts
+_sv = json.load(open(f'{R}/state_vs_abundance_summary.json'))
+chk('score correlation', 0.919, _sv['rho_armA_armR'])
+chk('blast n', 227, _sv['blast_n'], 0)
+chk('blast rho', -0.065, _sv['blast_rho_armA'])
+chk('blast rho p', 0.33, _sv['blast_rho_armA_p'], 6e-3)
+chk('blast alone auroc', 0.450, _sv['blast_alone_auroc'])
+chk('steiger min', 0.11, _sv['steiger_p_min'], 5e-3)
+section('pass8')
+
+# ---- ninth pass: no decimal may be quoted in the text without an assertion above ------
+# The sections above assert values one by one, which says nothing about a number that was
+# added to the text and never checked. This pass reads the manuscript back and requires
+# every decimal in it to appear, at the precision the text uses, as a literal in this file.
+_MD = ('abstract_v3.md', 'introduction.md', 'methods.md', 'results.md', 'discussion.md',
+       'figure_legends.md')
+_ALLOW = {  # the penalty grid, the FDR and significance thresholds, library versions
+    '0.001', '0.01', '0.1', '0.05', '3.11', '2.4', '1.17', '2.3', '1.8', '0.12',
+    # the two cross-modal discard percentages are printed by the reference build and are
+    # not re-derivable without rebuilding the reference, which would move every result
+    '8.5', '9.1'}
+_self = open('/home/holiday01/2026_cm/scripts/check_reported_numbers.py').read()
+_lits = [float(x) for x in _re.findall(r'(?<![\w.])\d+\.\d+', _self)]
+_uncovered = []
+for _f in _MD:
+    _t = open(f'/home/holiday01/2026_cm/manuscript/{_f}').read()
+    for _m in _re.finditer(r'(?<![\w.])(\d+\.\d+)', _t):
+        _s = _m.group(1)
+        if _s in _ALLOW:
+            continue
+        _nd = len(_s.split('.')[1])
+        if not any(abs(round(_v, _nd) - float(_s)) < 1e-12 for _v in _lits):
+            _uncovered.append(f'{_f}:{_s}')
+chk('decimals quoted with no assertion', 0, len(_uncovered), 0)
+if _uncovered:
+    print('  uncovered:', ', '.join(_uncovered))
+section('pass9')
 
 print(f'\ntotal: {len(ALL)} mismatch across all sections')
 sys.exit(1 if ALL else 0)

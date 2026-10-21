@@ -1,0 +1,3 @@
+definition,n_stem,n_rest,mean_stem,mean_rest,gap,p_one_sided,p_two_sided,allpos_stem,allpos_rest,n_perm
+myeloid stem/progenitor,3,14,0.04116999299719883,0.0088985969387755,0.03227139605842333,0.02251,0.027005,3,1,200000
+"progenitor, lymphoid included",4,13,0.03763117121848735,0.007505050096961855,0.030126121121525497,0.013875,0.02146,3,1,200000

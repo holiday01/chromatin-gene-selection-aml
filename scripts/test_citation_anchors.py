@@ -27,7 +27,8 @@ LAMBO = ('introduction.md', 'that persist through treatment', 'that endure throu
 STEIGER = ('methods.md', 'with a variable in common', 'with one variable in common')
 SPARE = ('references.bib', '@article{Steiger1980,',
          '@misc{Spare2099, title={Never cited}, year={2099}}\n@article{Steiger1980,')
-KEY_TEX = ('discussion.md', '## Discussion', '## Discussion\n\nA stray \\citep{NotInBib} key.')
+KEY_TEX = (TEX, '"\\\\citep{Steiger1980}"', '"\\\\citep{Steiger1999}"')
+RAW_TEX = ('discussion.md', '## Discussion', '## Discussion\n\nA stray \\citep{NotInBib} key.')
 KEY_DOC = ('discussion.md', '## Discussion', '## Discussion\n\nA stray [@NotInBib] key.')
 # the panel letters of every figure legend are written (**a**), so the order of the two
 # markdown substitutions decides whether the PDF prints the asterisks
@@ -38,10 +39,15 @@ ORDER = (TEX,
          "    t=re.sub(r'\\*\\*(.+?)\\*\\*', r'\\\\textbf{\\1}', t, flags=re.S)")
 OLD_CHECK = (TEX, 'missing=[e[0] for e in CITE if e[0] not in MATCHED]',
              'missing=[e[0] for e in CITE if e[1] not in TEX]')
+# braces are grouping characters and a backtick is a left quote in LaTeX, so the converter
+# has to escape the one and convert the other before any command braces are inserted
+CODESPAN = (TEX, "    t=re.sub(r'`([^`]+)`', r'\\\\texttt{\\1}', t)    # a backtick is a left quote in LaTeX",
+            '    pass')
 
 
-def run(builder, edits=()):
-    """Build in a throwaway copy of the manuscript; edits are (file, old, new), once each."""
+def run(builder, edits=(), read=None):
+    """Build in a throwaway copy of the manuscript; edits are (file, old, new), once each.
+    With read, also return that file's content from the copy."""
     d = tempfile.mkdtemp(prefix='cite_anchors_')
     try:
         for f in SRC:
@@ -52,7 +58,8 @@ def run(builder, edits=()):
             assert t.count(a) >= 1, (f, a)
             open(f'{d}/{f}', 'w').write(t.replace(a, b, 1))
         r = subprocess.run([PY, '-I', builder], cwd=d, capture_output=True, text=True)
-        return r.returncode, r.stdout + r.stderr
+        got = open(f'{d}/{read}').read() if read and os.path.exists(f'{d}/{read}') else ''
+        return r.returncode, r.stdout + r.stderr, got
     finally:
         shutil.rmtree(d)
 
@@ -66,19 +73,23 @@ CASES = [
      [STEIGER], [TEX, DOC], 'ANCHOR NOT FOUND'),
     ('a bibliography entry that no anchor cites',
      [SPARE], [TEX, DOC], 'BIB ENTRY NEVER CITED'),
-    ('a citation key in the text that the bibliography does not define',
+    ('an anchor naming a key the bibliography does not define',
      [KEY_TEX], [TEX], 'CITED BUT NOT IN BIB'),
+    ('LaTeX written into the markdown, which neither build converts',
+     [RAW_TEX], [TEX], 'BACKSLASH IN THE MARKDOWN SOURCE'),
     ('a citation key in the text that the bibliography does not define',
      [KEY_DOC], [DOC], 'CITED BUT NOT IN BIB'),
     ('the markdown substitutions in the order that leaves (**a**) as (*a*)',
-     [ORDER], [TEX], 'MARKDOWN ASTERISK LEFT IN THE TEX'),
+     [ORDER], [TEX], 'UNCONVERTED MARKDOWN LEFT IN THE TEX'),
+    ('the code spans left as backticks, which LaTeX sets as quotation marks',
+     [CODESPAN], [TEX], 'UNCONVERTED MARKDOWN LEFT IN THE TEX'),
 ]
 
 if __name__ == '__main__':
     ok = True
     print('positive control, unmodified sources')
     for b in (TEX, DOC):
-        rc, out = run(b)
+        rc, out, _ = run(b)
         line = [l for l in out.splitlines() if 'citation' in l]
         print(f'  {b}: exit={rc} | {line[0] if line else out.splitlines()[-1]}')
         if rc != 0:
@@ -87,7 +98,7 @@ if __name__ == '__main__':
     print('\ninjected faults, each must be rejected with its reason')
     for name, edits, builders, want in CASES:
         for b in builders:
-            rc, out = run(b, edits)
+            rc, out, _ = run(b, edits)
             caught = rc != 0 and want in out
             ok &= caught
             print(f'  [{"caught " if caught else "MISSED "}] {b}: {name}')
@@ -97,13 +108,22 @@ if __name__ == '__main__':
     # Lambo is cited by two anchors through the same \citep, which is the collision the
     # citation-string check cannot see; the two Ng anchors now differ in \citep against \citet
     print('\ndifferential case, per-anchor bookkeeping against the citation-string check')
-    rc_new, _ = run(TEX, [LAMBO])
-    rc_old, out_old = run(TEX, [LAMBO, OLD_CHECK])
+    rc_new, _, _ = run(TEX, [LAMBO])
+    rc_old, _, _ = run(TEX, [LAMBO, OLD_CHECK])
     print(f'  current check: exit={rc_new}')
     print(f'  citation-string check only: exit={rc_old}')
     if not (rc_new != 0 and rc_old == 0):
         ok = False
         print('  FAIL: the two checks behave alike, so this case proves nothing')
+
+    # a swallowed brace leaves no markdown behind, so it is checked on the assembled TEX
+    print('\nconversions checked on the output rather than by the guard')
+    _, _, tex = run(TEX, read='manuscript.tex')
+    for frag, why in ((r'\{0.001, 0.01, 0.1, 1\}', 'the penalty set keeps its braces'),
+                      (r'\texttt{beataml\_waves1to4', 'the file name is set as monospace')):
+        hit = frag in tex
+        ok &= hit
+        print(f'  [{"ok     " if hit else "MISSING"}] {why}')
 
     print(f'\n{"all cases behave as required" if ok else "SOME CASES FAILED"}')
     sys.exit(0 if ok else 1)

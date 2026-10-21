@@ -101,6 +101,7 @@ print(M[['bmmc', 'aml', 'mean4', 'allpos', 'stem']]
       .to_string(index=False, float_format=lambda v: f'{v:+.4f}'))
 rng = np.random.default_rng(5)
 allv = M.mean4.values
+comp = []
 for lbl, members in (('myeloid stem/progenitor', STEMPROG),
                      ('progenitor, lymphoid included', BROADER)):
     stem = M.bmmc.isin(members)
@@ -117,6 +118,14 @@ for lbl, members in (('myeloid stem/progenitor', STEMPROG),
           f'one-sided p={p1:.4g}, two-sided p={p2:.4g}')
     print(f'    positive in all four CV cells: {int(M.loc[stem, "allpos"].sum())}/{len(s)}; '
           f'among the rest {int(M.loc[~stem, "allpos"].sum())}/{len(o)}')
+    comp.append(dict(definition=lbl, n_stem=len(s), n_rest=len(o), mean_stem=s.mean(),
+                     mean_rest=o.mean(), gap=obs, p_one_sided=p1, p_two_sided=p2,
+                     allpos_stem=int(M.loc[stem, 'allpos'].sum()),
+                     allpos_rest=int(M.loc[~stem, 'allpos'].sum()), n_perm=N_PERM))
+# the permutation P values are Monte Carlo, so the manuscript must quote this run's own
+# values rather than a reproduction with another random stream
+pd.DataFrame(comp).to_csv(f'{ROOT}/results/cross_reference_compartment.csv', index=False)
+print('\nwrote results/cross_reference_compartment.csv')
 print(f'\nprogrammes positive in all four CV cells: {int(M.allpos.sum())}/{len(M)} '
       f'({", ".join(M.loc[M.allpos, "bmmc"])})')
 print('  reported as a count. The four cells share one cohort and two correlated penalties, '
