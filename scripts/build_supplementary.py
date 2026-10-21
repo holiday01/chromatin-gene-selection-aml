@@ -64,6 +64,20 @@ if S2 is not None:
 
 # ---- S3/S4: hyperparameter and budget sweeps -------------------------------------------
 S3, S4 = rd('sweep_programs.csv'), rd('budget_sweep.csv')
+# results/ keeps the column names the producing scripts wrote, because
+# check_reported_numbers.py asserts against them. The workbook is the reader-facing
+# artefact, so every column is renamed here to say what it holds.
+if S4 is not None:
+    S4 = S4[S4.reference != 'reference'].rename(columns={
+        'A_cv_0.01': 'A_cv_AUROC_C0.01', 'R_cv_0.01': 'R_cv_AUROC_C0.01',
+        'A_cv_0.1': 'A_cv_AUROC_C0.1', 'R_cv_0.1': 'R_cv_AUROC_C0.1',
+        'd_cv_0.01': 'A_minus_R_cv_C0.01', 'd_xw_0.01': 'A_minus_R_xwave_C0.01',
+        'd_cv_0.1': 'A_minus_R_cv_C0.1', 'd_xw_0.1': 'A_minus_R_xwave_C0.1'})
+if S3 is not None:
+    S3 = S3.rename(columns={c: c.replace('A_C', 'armA_cv_AUROC_C')
+                                 .replace('R_C', 'armR_cv_AUROC_C')
+                                 .replace('M_C', 'variance_matched_cv_AUROC_C')
+                            for c in S3.columns if c[:2] in ('A_', 'R_', 'M_')})
 # both sweeps were written with the uncorrected per-fold Wilcoxon the paper no longer uses;
 # keep the effect sizes, drop the P values rather than show two inference methods
 for _d in (S3, S4):
@@ -126,7 +140,14 @@ S6b = pd.DataFrame(S6b) if S6b else None
 
 # ---- S7: enrichment ---------------------------------------------------------------------
 S7a, S7b = rd('enrich_enrichr.csv'), rd('enrich_lsc_overlap.csv')
-if S7a is not None: S7a = S7a[S7a.q < 0.25].sort_values(['gene_set','library','q'])
+if S7a is not None:
+    S7a = S7a[S7a.q < 0.25].sort_values(['gene_set', 'library', 'q']).rename(columns={
+        'p': 'enrichr_p', 'q': 'enrichr_q_BH', 'odds': 'odds_ratio',
+        'combined': 'enrichr_combined_score'})
+if S7b is not None:
+    S7b = S7b.rename(columns={'p': 'fisher_one_sided_p', 'odds': 'odds_ratio',
+                              'n': 'n_in_gene_set', 'overlap': 'n_overlap',
+                              'expected': 'n_overlap_expected'})
 
 # ---- S8: the LSC104 transcription and its resolution ------------------------------------
 S8a = pd.read_csv(f'{ROOT}/data/ref/published_signatures/ng2016_table1_transcribed.tsv', sep='\t')
@@ -178,6 +199,12 @@ if S10 is not None:
 # All cells are cross-validated. Programmes share the cohort, the endpoint and the folds,
 # so the aggregate tests are descriptive and the pairing is by cell identity alone.
 S11a = rd('cross_reference_aggregate.csv')
+if S11a is not None:
+    S11a = S11a.rename(columns={
+        'cell': 'reference_and_penalty', 'n': 'n_programmes',
+        'positive': 'n_programmes_favouring_armA', 'mean': 'mean_A_minus_R',
+        'median': 'median_A_minus_R', 'sign_p': 'sign_test_p_over_programmes',
+        'wilcoxon_p': 'wilcoxon_signedrank_p_over_programmes'})
 S11b = rd('cross_reference_programs.csv')
 if S11b is not None:
     S11b = S11b.rename(columns={

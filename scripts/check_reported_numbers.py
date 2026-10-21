@@ -295,6 +295,16 @@ chk('var draws outside pool max', 79, max(_off), 0)
 chk('var draws armA overlap min', 0, min(_ov), 0)
 chk('var draws armA overlap max', 3, max(_ov), 0)
 chk('top99 variance in pool', 16, len({_inv[j] for j in np.argsort(-_var)[:99]} & _elig), 0)
+# the subset analysis range, which no assertion covered and which had drifted
+dt = pd.read_csv(f'{R}/distributed_test.csv')
+gaps = []
+for C in ('cv_0.01', 'cv_0.1'):
+    for sz in sorted(dt['size'].unique()):
+        q = dt[dt['size'] == sz].set_index('arm')
+        gaps.append(float(q.loc['random-in-A', C] - q.loc['random-in-pool', C]))
+chk('subset gap min', 0.055, min(gaps), 6e-4)
+chk('subset gap max', 0.072, max(gaps), 6e-4)
+chk('subset gap all positive', 10, sum(g > 0 for g in gaps), 0)
 section('pass6')
 
 print(f'\ntotal: {len(ALL)} mismatch across all sections')

@@ -69,6 +69,8 @@ data/ref/                   included here
 10. `collect_numbers.py`, `check_reported_numbers.py` — the reported values and their check
 11. `audit_freshness.py` — every result's producer and whether it predates the newest
     reference rebuild
+12. `audit_supplementary.py` — the supplementary scope table against the outputs, and every
+    workbook sheet against its legend
 
 ## Inference
 
@@ -97,6 +99,17 @@ or non-finite value counts as a mismatch. `collect_numbers.py` lists the values.
 `audit_freshness.py` finds each result's producer by parsing the write calls of every script,
 so paths built from f-strings resolve, and reports a result whose producer it cannot identify
 as UNVERIFIED rather than passing it as independent of the AML references.
+
+Neither of those reads the submission workbook, so `audit_supplementary.py` does. It parses
+the reference-by-penalty table of the supplementary methods and checks every row it can
+against the outputs, reporting a row it cannot check as DECLARED rather than passing it; it
+checks that each sheet has a legend and each legend a sheet; and it checks that a legend
+promising a performance figure sits on a sheet that holds one, that no sheet ships a column
+the paper abandoned or a column name that is ambiguous between two statistics, and that no
+column is empty for every row. Three classes of error passed the other two audits
+repeatedly: a scope sentence generalised from one output file to all of them, a legend
+promising a quantity its sheet does not hold, and paired differences under a column name
+that reads as performance.
 
 ## Environment
 
