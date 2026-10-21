@@ -82,47 +82,67 @@ for s in sorted(glob.glob(f'{ROOT}/scripts/*.py')):
             if f not in written:
                 reads.setdefault(b, set()).add(f)
     for f in written:
-        writers.setdefault(f, b)
+        writers.setdefault(f, []).append(b)
 
-def aml_dep(script, out=None, seen=()):
+def combine(vals):
+    """True beats None beats False: an unknown dependency is never treated as absent.
+    An empty list means nothing was read, which is a resolved absence, not an unknown."""
+    vals = list(vals)
+    if any(v is True for v in vals): return True
+    if any(v is None for v in vals): return None
+    return False
+
+def aml_dep(scripts, out=None, seen=()):
     """A script depends on an AML reference if it loads one, or reads a result that does.
     An unresolved read leaves the dependency unknown rather than absent.
 
     Several scripts take the reference as a command-line argument and name their outputs
     after it (tag = basename of the npz), so for those the output filename carries the
-    reference identity and is used instead of the script source."""
-    if script in seen or not os.path.exists(f'{ROOT}/scripts/{script}'):
-        return None
+    reference identity and is used instead of the script source.
+
+    A result claimed by several scripts takes the dependency of all of them combined, so
+    picking one claimant cannot hide an AML dependency in another."""
     if out and 'aml' in out.lower():
         return True
-    if re.search(r'programs_aml', open(f'{ROOT}/scripts/{script}').read()):
-        return True
-    got = [aml_dep(writers[r], r, seen + (script,)) if r in writers else None
-           for r in sorted(reads.get(script, ()))]
-    if any(g is True for g in got): return True
-    if any(g is None for g in got): return None
-    return False
+    if not scripts:
+        return None
+    per = []
+    for script in scripts:
+        if script in seen or not os.path.exists(f'{ROOT}/scripts/{script}'):
+            per.append(None); continue
+        if re.search(r'programs_aml', open(f'{ROOT}/scripts/{script}').read()):
+            per.append(True); continue
+        per.append(combine(aml_dep(writers[r], r, seen + (script,)) if r in writers else None
+                           for r in sorted(reads.get(script, ()))))
+    return combine(per)
 
-rows = []
+rows, ambiguous = [], []
 for f in sorted(glob.glob(f'{ROOT}/results/*.csv') + glob.glob(f'{ROOT}/results/*.json')
                 + glob.glob(f'{ROOT}/results/*.xlsx')):
     base = os.path.basename(f)
     src = writers.get(base)
     dep = aml_dep(src, base) if src else None
     t = mt(f)
+    if src and len(src) > 1:
+        ambiguous.append((base, src))
     if dep is None:
         flag, lbl = 'UNVERIFIED', 'unknown'
     elif dep and t < newest_aml:
         flag, lbl = 'STALE', 'AML+healthy'
     else:
         flag, lbl = 'ok', 'AML+healthy' if dep else 'healthy only'
-    rows.append((base, src or '?', lbl, time.strftime('%H:%M', time.localtime(t)), flag))
+    name = '?' if not src else (src[0] if len(src) == 1 else f'{src[0]} +{len(src)-1}')
+    rows.append((base, name, lbl, time.strftime('%H:%M', time.localtime(t)), flag))
 
 w = max(len(r[0]) for r in rows)
 print(f'{"result":{w}s}  {"written by":28s} {"depends on":12s} {"mtime":6s}')
 order = {'STALE': 0, 'UNVERIFIED': 1, 'ok': 2}
 for r in sorted(rows, key=lambda x: (order[x[4]], x[0])):
     print(f'{r[0]:{w}s}  {r[1]:28s} {r[2]:12s} {r[3]:6s} {r[4]}')
+if ambiguous:
+    print('\nclaimed by more than one script; the dependency is the union of all claimants:')
+    for base, srcs in ambiguous:
+        print(f'  {base}  <- {", ".join(srcs)}')
 stale = [r for r in rows if r[4] == 'STALE']
 unver = [r for r in rows if r[4] == 'UNVERIFIED']
 print(f'\n{len(stale)} file(s) depend on an AML reference and predate the newest rebuild')

@@ -98,6 +98,9 @@ for label, tag in REFS.items():
         r.update({f'xwave_C{k}': v for k, v in j['xwave'][arm].items()})
         S5.append(r)
 S5 = pd.DataFrame(S5) if S5 else None
+if S5 is not None:
+    S5 = S5.rename(columns={c: c.replace('cv_C', 'cv_AUROC_C').replace('xwave_C', 'xwave_AUROC_C')
+                            for c in S5.columns if c.startswith(('cv_C', 'xwave_C'))})
 
 # ---- S6a: permuted-link nulls -----------------------------------------------------------
 # 'beats' in the source JSON counts permutations where the mean difference is positive AND

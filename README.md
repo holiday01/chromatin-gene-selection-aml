@@ -71,6 +71,8 @@ data/ref/                   included here
     reference rebuild
 12. `audit_supplementary.py` — the supplementary scope table against the outputs, and every
     workbook sheet against its legend
+13. `test_audit_freshness.py`, `test_audit_supplementary.py` — fault injection for the two
+    audits above
 
 ## Inference
 
@@ -110,6 +112,15 @@ column is empty for every row. Three classes of error passed the other two audit
 repeatedly: a scope sentence generalised from one output file to all of them, a legend
 promising a quantity its sheet does not hold, and paired differences under a column name
 that reads as performance.
+
+An audit that passes on good data has not been shown to reject bad data, so both audits have
+a fault-injection test beside them. The tests rewrite the audit, or replace its readers, in
+memory and require a non-zero exit for each injected failure, with a positive control on the
+unmodified tree. They cover one reference losing a penalty while the others keep it, one
+member of a grouped row disappearing, a table losing the columns its legend describes, an
+abandoned column returning, a result losing its producer, and an ambiguous producer hiding
+an AML dependency. Every one of those passed an earlier version of the audits. Each audit
+reports what it cannot check as DECLARED or UNVERIFIED rather than as a pass.
 
 ## Environment
 
