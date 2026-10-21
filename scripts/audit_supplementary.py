@@ -209,6 +209,28 @@ CHECKS = {
     'linking-free locus arms': [lambda: cov_json_arms('locus_arm.json', 'locus_')],
     'permuted-link nulls': [cov_permutation],
 }
+# The penalty values each row declares, not merely how many. A set of the right size with a
+# wrong value in it passed the earlier version, which compared len() alone. Classification
+# uses C and the Cox models use alpha, so the two grids are declared separately and never
+# pooled. Values are compared as floats after normalisation, because the sources store them
+# as JSON keys, CSV column suffixes and numeric columns.
+PENALTIES = {
+    'arm A against arm R, 200 genes': {0.001, 0.01, 0.1, 1},
+    'arm A divided by link count': {0.001, 0.01, 0.1, 1},
+    'arm A residualised on ln(1 + link count)': {0.001, 0.01, 0.1, 1},
+    'link count alone': {0.001, 0.01, 0.1, 1},
+    'gene budget sweep, 10 to 200 genes': {0.01, 0.1},
+    'peak density, genomic span, summed link correlation, link count': {0.01, 0.1},
+    'link-count-matched random draws': {0.01, 0.1},
+    'every programme of the reference': {0.01, 0.1},
+    'overall survival, every programme': {1.0, 0.1},
+    'overall survival, paired comparison for the stem cell programme': {100.0, 10.0, 1.0, 0.1},
+    'programmes matched between references by cell identity': {0.01, 0.1},
+    'published comparator and LSC17': {0.01, 0.1},
+    'variance-matched draws and the most variable genes': {0.01, 0.1},
+    'linking-free locus arms': {0.01, 0.1},
+    'permuted-link nulls': {0.01, 0.1},
+}
 NOT_CHECKABLE = {
     'subsets of the selected genes': 'distributed_test.csv records size and arm, not reference',
     'clinical covariate models': 'recompute_remaining.py loads programs.npz directly; the '
@@ -219,19 +241,32 @@ NOT_CHECKABLE = {
 # Which columns of each sheet hold an absolute performance figure and which hold a paired
 # difference. Stated per sheet rather than guessed, so a sheet that loses its performance
 # columns fails whether or not it still has difference columns.
-ABS = re.compile(r'(auroc|cindex|concordance)', re.I)
-DIFF = re.compile(r'(a_minus_r|_minus_|delta|^diff$)', re.I)
-BANNED = ('beats', 'wilcoxon_p', 'p', 'sign_p', 'q', 'odds')
-
-# What each sheet holds, declared rather than inferred from the wording of its legend. A
-# legend can mention AUROC in order to deny it, so keyword matching on the legend reads a
-# denial as a promise. Stating it here also makes a column that silently disappears or
-# appears a failure in both directions. A sheet with no declaration fails.
-SHEET_KIND = {
-    'S1': set(), 'S2': {'diff'}, 'S3': {'abs'}, 'S4': {'abs', 'diff'}, 'S5': {'abs'},
-    'S6a': {'abs'}, 'S6b': {'abs'}, 'S7a': set(), 'S7b': set(), 'S8a': set(), 'S8b': set(),
-    'S9a': {'abs'}, 'S9b': {'diff'}, 'S10': {'abs', 'diff'}, 'S11a': {'diff'},
-    'S11b': {'diff'}, 'S12a': set(), 'S12b': set(),
+# The exact columns of each sheet, declared rather than inferred. Checking that a sheet has
+# "some column holding a difference" is a weaker property than the schema it is meant to
+# have: a sheet could lose one arm's performance column, or gain a column, and still satisfy
+# it. Set equality against this manifest catches a removal, an addition and a rename, and it
+# subsumes the ban on shipping a column the paper abandoned or a name ambiguous between two
+# statistics. Changing a column here is deliberate; the audit then records the submission's
+# schema. A sheet with no declaration fails.
+SHEET_COLUMNS = {
+    'S1': ['reference', 'arm', 'rank', 'gene', 'selection_score', 'n_linked_peaks', 'in_Ng2016_LSC104', 'in_Ng2016_LSC17'],
+    'S2': ['reference', 'program', 'lineage', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
+    'S3': ['tag', 'window', 'min_r', 'top_m', 'n_links', 'eligible', 'nA', 'nR', 'armA_cv_AUROC_C0.001', 'armA_cv_AUROC_C0.01', 'armA_cv_AUROC_C0.1', 'armA_cv_AUROC_C1', 'armR_cv_AUROC_C0.001', 'armR_cv_AUROC_C0.01', 'armR_cv_AUROC_C0.1', 'armR_cv_AUROC_C1', 'variance_matched_cv_AUROC_C0.001', 'variance_matched_cv_AUROC_C0.01', 'variance_matched_cv_AUROC_C0.1', 'variance_matched_cv_AUROC_C1'],
+    'S4': ['reference', 'k', 'n_A', 'A_cv_AUROC_C0.01', 'R_cv_AUROC_C0.01', 'A_minus_R_cv_C0.01', 'A_minus_R_xwave_C0.01', 'A_cv_AUROC_C0.1', 'R_cv_AUROC_C0.1', 'A_minus_R_cv_C0.1', 'A_minus_R_xwave_C0.1'],
+    'S5': ['reference', 'measure', 'arm', 'n', 'n_links', 'mean_r', 'span_kb', 'peak_density', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
+    'S6a': ['null', 'setting', 'n_permutations', 'real_cv_AUROC', 'null_cv_AUROC_mean', 'null_cv_AUROC_sd', 'empirical_p_cv', 'real_xwave_AUROC', 'null_xwave_AUROC_mean', 'n_perms_real_higher_xwave', 'gene_overlap_median', 'gene_overlap_min', 'gene_overlap_max', 'distinct_peaks_real', 'distinct_peaks_permuted_median'],
+    'S6b': ['arm', 'gene_overlap_with_armA', 'cv_AUROC_C0.01', 'cv_AUROC_C0.1', 'xwave_AUROC_C0.01', 'xwave_AUROC_C0.1'],
+    'S7a': ['gene_set', 'library', 'term', 'enrichr_p', 'odds_ratio', 'enrichr_combined_score', 'enrichr_q_BH', 'n_overlap', 'genes'],
+    'S7b': ['reference', 'n_ref_in_pool', 'gene_set', 'n_in_gene_set', 'n_overlap', 'n_overlap_expected', 'odds_ratio', 'fisher_one_sided_p', 'genes'],
+    'S8a': ['symbol', 'entrez', 'log2fc', 'signature'],
+    'S8b': ['table_symbol', 'entrez', 'signature', 'current', 'beataml'],
+    'S9a': ['reference', 'arm', 'endpoint', 'n', 'events', 'cv_cindex_alpha1.0', 'cv_cindex_alpha0.1', 'xwave_cindex_alpha1.0', 'xwave_cindex_alpha0.1'],
+    'S9b': ['reference', 'alpha', 'A_minus_R_cindex', 'corrected_t', 'corrected_p'],
+    'S10': ['C', 'quantity', 'AUROC', 'delta_AUROC', 'comparison', 'corrected_t', 'corrected_p'],
+    'S11a': ['reference_and_penalty', 'n_programmes', 'n_programmes_favouring_armA', 'mean_A_minus_R', 'median_A_minus_R', 'sign_test_p_over_programmes', 'wilcoxon_signedrank_p_over_programmes'],
+    'S11b': ['healthy_programme', 'malignant_programme', 'healthy_A_minus_R_C0.01', 'malignant_A_minus_R_C0.01', 'healthy_A_minus_R_C0.1', 'malignant_A_minus_R_C0.1', 'mean_over_four_cv_cells', 'positive_in_all_four', 'myeloid_stem_progenitor'],
+    'S12a': ['step', 'n'],
+    'S12b': ['variable', 'denominator', 'excluded', 'retained'],
 }
 
 
@@ -260,6 +295,12 @@ def check_scope(text, bad, declared):
         except ValueError:
             bad.append(('S-M1', f'{r["analysis"]}: penalty column is not a number'))
             continue
+        want_set = PENALTIES.get(r['analysis'])
+        if want_set is None:
+            bad.append(('S-M1', f'{r["analysis"]}: no declared penalty set'))
+        elif len(want_set) != want_pen:
+            bad.append(('S-M1', f'{r["analysis"]}: the table says {want_pen} penalties but '
+                                f'the declared set holds {len(want_set)}'))
         shown = None
         for i, fn in enumerate(fns):
             got = fn()
@@ -274,10 +315,17 @@ def check_scope(text, bad, declared):
                 bad.append(('S-M1', f'{r["analysis"]} (source {i}): declared references '
                                     f'{sorted(decl_refs)}, outputs give {sorted(act_refs)}'))
             for k in sorted(act_refs & decl_refs):
-                if len(got[k]) != want_pen:
+                act_set = set()
+                for v in got[k]:
+                    try:
+                        act_set.add(float(v))
+                    except (TypeError, ValueError):
+                        bad.append(('S-M1', f'{r["analysis"]} (source {i}): {k} carries a '
+                                            f'penalty that is not a number, {v!r}'))
+                if want_set is not None and act_set != want_set:
                     bad.append(('S-M1', f'{r["analysis"]} (source {i}): {k} declares '
-                                        f'{want_pen} penalties, outputs give '
-                                        f'{len(got[k])} {sorted(got[k])}'))
+                                        f'penalties {sorted(want_set)}, outputs give '
+                                        f'{sorted(act_set)}'))
             if shown is None: shown = act_refs
         d1 = ''.join('y' if k in decl_refs else 'n' for k in REFS)
         d2 = ''.join('y' if shown and k in shown else 'n' for k in REFS)
@@ -300,23 +348,18 @@ def check_legends(text, bad):
         if sid not in legends: continue
         d = bk.parse(sheet)
         cols = [str(c) for c in d.columns]
-        kind = SHEET_KIND.get(sid)
-        if kind is None:
-            bad.append(('legends', f'sheet {sheet} has no declared content kind'))
-            kind = set()
-        has_abs = any(ABS.search(c) and not DIFF.search(c) for c in cols)
-        has_diff = any(DIFF.search(c) for c in cols)
-        for want, got, what in (('abs' in kind, has_abs, 'a performance figure'),
-                                ('diff' in kind, has_diff, 'a paired difference')):
-            if want and not got:
-                bad.append(('legends', f'{sheet} should hold {what} and has no column '
-                                       f'holding one'))
-            if got and not want:
-                bad.append(('legends', f'{sheet} holds {what} that is not declared'))
-        for banned in BANNED:
-            if banned in [c.lower() for c in cols]:
-                bad.append(('legends', f'{sheet} carries the ambiguous or abandoned column '
-                                       f'"{banned}"'))
+        want = SHEET_COLUMNS.get(sid)
+        if want is None:
+            bad.append(('legends', f'sheet {sheet} has no declared columns'))
+        else:
+            missing = [c for c in want if c not in cols]
+            extra = [c for c in cols if c not in want]
+            if missing:
+                bad.append(('legends', f'{sheet} is missing declared column(s) {missing}'))
+            if extra:
+                bad.append(('legends', f'{sheet} carries undeclared column(s) {extra}'))
+            if not missing and not extra and cols != list(want):
+                bad.append(('legends', f'{sheet} has the declared columns in another order'))
         empty = [c for c in d.columns if d[c].isna().all()]
         if empty:
             bad.append(('legends', f'{sheet} has column(s) empty for every row: {empty}'))

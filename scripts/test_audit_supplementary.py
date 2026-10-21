@@ -103,6 +103,26 @@ def c6():
     A.book = patch_sheet('S6a_permuted_link_nulls', m)
 
 
+@case('one arm loses its performance column while the other keeps it')
+def c6b():
+    A.book = patch_sheet('S4_budget_sweep',
+                         lambda d: d.drop(columns=['R_cv_AUROC_C0.01']))
+
+
+@case('a column is renamed back to something cryptic')
+def c6c():
+    A.book = patch_sheet('S2_per_program',
+                         lambda d: d.rename(columns={'A_minus_R_cv_C0.01': 'cv_0.01'}))
+
+
+@case('the declared columns appear in another order')
+def c6d():
+    def m(d):
+        c = list(d.columns)
+        return d[[c[1], c[0]] + c[2:]]
+    A.book = patch_sheet('S12b_cohort_composition', m)
+
+
 @case('a link-count draw is missing from one reference')
 def c7():
     def m(j):
@@ -122,6 +142,39 @@ def c8():
 @case('a sheet becomes empty')
 def c9():
     A.book = patch_sheet('S12a_inclusion_flow', lambda d: d.iloc[0:0])
+
+
+@case('a penalty is replaced by another, so the count is unchanged')
+def c11():
+    def m(j):
+        j['cv']['peak density only']['0.001'] = j['cv']['peak density only'].pop('0.1')
+        return j
+    A.rj = patch_json('confound_programs_aml_all_v3.json', m)
+
+
+@case('a penalty is replaced by a value from no grid at all')
+def c12():
+    def m(j):
+        j['cv']['peak density only']['999'] = j['cv']['peak density only'].pop('0.1')
+        return j
+    A.rj = patch_json('confound_programs_aml_all_v3.json', m)
+
+
+@case('a Cox alpha is replaced by a classification penalty')
+def c13():
+    def m(d):
+        d.loc[(d.analysis == 'overall_survival') & (d.reference == 'AML-all')
+              & (d.C == 100.0), 'C'] = 0.01
+        return d
+    A.rd = patch_csv('recomputed_remaining.csv', m)
+
+
+@case('a penalty is not a number')
+def c14():
+    def m(j):
+        j['cv']['peak density only']['best'] = j['cv']['peak density only'].pop('0.1')
+        return j
+    A.rj = patch_json('confound_programs_aml_all_v3.json', m)
 
 
 @case('a source output goes missing')
