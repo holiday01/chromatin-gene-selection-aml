@@ -660,6 +660,23 @@ claim('results.md',
       r'exceeded the\s*expression rule in ' + _N + r' of 12 cross-validated comparisons of '
       r"Harrell's concordance index,\s*with differences between " + _N + r' and \+' + _N,
       int((_OS['diff'] > 0).sum()), _OS['diff'].min(), _OS['diff'].max(), label='survival')
+# The compartment comparison is described in two places in the Methods, so both have to
+# agree with the artefact, which records an exhaustive enumeration rather than a sample.
+# A stale sampling count survived one round in the first of them while the second was
+# already correct.
+_mt = mtext('methods.md')
+_sent = [s for s in _re.split(r'(?<=[.;]) ', _mt) if 'grouped and compared with the remaining' in s]
+chk('compartment sentence found', 1, float(len(_sent)), 0)
+if _sent:
+    chk('compartment described as enumerated', 1.0, float('enumerat' in _sent[0]), 0)
+    chk('compartment not described as sampled', 0.0,
+        float(bool(_re.search(r'draws|permut', _sent[0]))), 0)
+claim('methods.md',
+      r'matched\s*programmes, ' + _N + r' for the three-programme definition and ' + _N +
+      r' for the\s*four-programme definition',
+      _CP.loc['myeloid stem/progenitor', 'n_assignments'],
+      _CP.loc['progenitor, lymphoid included', 'n_assignments'], label='enumeration counts')
+
 # the two sentences that state how close the link-count arm comes, as a bound
 _lkx = rr[(rr.analysis == 'link_count') & (rr.reference != 'BMMC')]
 for _f, _pat in (('results.md', r'the two were within ' + _N + r' of each other'),
