@@ -677,6 +677,55 @@ claim('methods.md',
       _CP.loc['myeloid stem/progenitor', 'n_assignments'],
       _CP.loc['progenitor, lymphoid included', 'n_assignments'], label='enumeration counts')
 
+# The two subsets of the labelled cohort are quoted in the Methods, the Results and the
+# Figure 1 legend and drawn in the figure. They have one producer, so all four are read
+# from it rather than from a count written into the figure script.
+_CC = json.load(open(f'{R}/clinical_cohort.json'))
+chk('subset labelled', _CC['labelled'], float(_RESP.notna().sum()), 0)
+chk('subset waves sum', _CC['labelled'],
+    float(_CC['wave_train'] + _CC['wave_test'] + _CC['wave_both']), 0)
+claim('methods.md',
+      r'waves 1–2 as training \(n = ' + _N + r'; ' + _N + r' complete remission, ' + _N +
+      r' refractory\) and waves 3–4 as test \(n = ' + _N + r'; ' + _N +
+      r' complete remission, ' + _N + r' refractory\)',
+      _CC['wave_train'], _CC['wave_train_cr'], _CC['wave_train_refractory'],
+      _CC['wave_test'], _CC['wave_test_cr'], _CC['wave_test_refractory'],
+      label='methods wave split')
+claim('methods.md',
+      r'Clinical covariate models used the ' + _N + r' patients with complete age',
+      _CC['clinical_complete_cases'], label='methods clinical n')
+claim('methods.md',
+      r'criteria \(' + _N + r' complete remission, ' + _N + r' refractory; ' + _N +
+      r' favourable, ' + _N + r' intermediate, ' + _N + r' adverse\)',
+      _CC['clinical_cr'], _CC['clinical_refractory'], _CC['clinical_eln_favourable'],
+      _CC['clinical_eln_intermediate'], _CC['clinical_eln_adverse'],
+      label='methods clinical composition')
+claim('results.md',
+      r'In the ' + _N + r' patients with complete covariate data and an unambiguous ELN '
+      r'2017 category \(' + _N + r' complete remission, ' + _N + r' refractory\)',
+      _CC['clinical_complete_cases'], _CC['clinical_cr'], _CC['clinical_refractory'],
+      label='results clinical n')
+claim('figure_legends.md',
+      r'uses the ' + _N + r' training and ' + _N + r' test specimens defined by collection '
+      r'wave, with the ' + _N + r' specimens annotated to both wave groups excluded from '
+      r'that split, and the clinical models use the ' + _N + r' patients',
+      _CC['wave_train'], _CC['wave_test'], _CC['wave_both'],
+      _CC['clinical_complete_cases'], label='legend subsets')
+# the count comes from a second script, so the two inclusion masks are compared line by
+# line; a covariate added to one of them and not the other would otherwise pass unseen
+def _mask(path):
+    src = open(f'/home/holiday01/2026_cm/scripts/{path}').read()
+    return [''.join(l.split()) for l in src.splitlines()
+            if l.lstrip().startswith(("C['", 'eln=', 'eln =', 'ok=', 'ok ='))]
+chk('clinical mask shared', 1.0,
+    float(_mask('clinical_cohort_counts.py') == _mask('recompute_remaining.py')), 0)
+chk('clinical mask non-empty', 8, float(len(_mask('clinical_cohort_counts.py'))), 0)
+
+_FIG = open('/home/holiday01/2026_cm/scripts/make_flow_figure.py').read()
+chk('figure reads the subset sizes', 1.0, float('clinical_cohort.json' in _FIG), 0)
+chk('figure carries no written-in count', 0.0,
+    float(bool(_re.search(r'(?<![\d.])(580|458|450|346|254|194|150|96)(?![\d.])', _FIG))), 0)
+
 # the cover letter repeats the headline numbers, so it is read against the same sources
 claim('cover_letter.md',
       r'are ' + _N + r' diagnostic Beat AML specimens, ' + _N + r' of them with a',

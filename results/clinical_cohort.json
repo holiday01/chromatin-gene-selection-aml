@@ -1,0 +1,16 @@
+{
+ "labelled": 254,
+ "clinical_complete_cases": 194,
+ "clinical_cr": 139,
+ "clinical_refractory": 55,
+ "clinical_eln_favourable": 90,
+ "clinical_eln_intermediate": 43,
+ "clinical_eln_adverse": 61,
+ "wave_train": 150,
+ "wave_train_cr": 104,
+ "wave_train_refractory": 46,
+ "wave_test": 96,
+ "wave_test_cr": 64,
+ "wave_test_refractory": 32,
+ "wave_both": 8
+}

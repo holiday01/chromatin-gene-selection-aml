@@ -1,11 +1,14 @@
 """Figure 1, the specimen flow and the design of the comparison.
 
-Every count is read from the cohort flow table and the specimen table rather than written
-here, so the boxes cannot drift from the numbers the Methods and Table 1 report.
+Every count is read from the cohort flow table, the specimen table and the saved subset
+sizes rather than written here, so the boxes cannot drift from the numbers the Methods
+and Table 1 report. The wave counts are checked against the saved sizes as well, so the
+two producers cannot disagree.
 
 Each box is drawn around its text after the text has been measured, so no label can
 outgrow the box it sits in at the size the figure is finally printed.
 """
+import json
 import os
 import pandas as pd
 import matplotlib; matplotlib.use('Agg')
@@ -17,7 +20,7 @@ OUT = f'{ROOT}/manuscript/figures'
 os.makedirs(OUT, exist_ok=True)
 plt.rcParams.update({'font.family': 'DejaVu Sans'})
 CA, CR_, CG = '#1b5e8c', '#b4634a', '#8c8c8c'
-FS, FS_SMALL, FS_B = 8.2, 7.4, 7.6
+FS, FS_SMALL, FS_B = 8.2, 7.5, 7.6
 
 fl = pd.read_csv(f'{ROOT}/results/cohort_flow.csv').set_index('step').n
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
@@ -30,10 +33,15 @@ n_lab = int(resp.notna().sum())
 n_cr, n_ref = int((resp == 'CR').sum()), int((resp == 'Refractory').sum())
 n_train = int(((spec.cohort == 'Waves1+2') & resp.notna()).sum())
 n_test = int(((spec.cohort == 'Waves3+4') & resp.notna()).sum())
+n_both = int(((spec.cohort == 'Both') & resp.notna()).sum())
+sub = json.load(open(f'{ROOT}/results/clinical_cohort.json'))
+n_clin = int(sub['clinical_complete_cases'])
+assert (sub['wave_train'], sub['wave_test'], sub['wave_both']) == (n_train, n_test, n_both)
+assert sub['labelled'] == n_lab
 
 # the saved image is trimmed to its content, so the canvas is drawn larger to land at
 # the 5.8 in the other figures use and the text prints at the size set here
-fig = plt.figure(figsize=(7.1, 5.4))
+fig = plt.figure(figsize=(7.1, 6.3))
 gs = fig.add_gridspec(1, 2, width_ratios=[1.18, 1], wspace=0.04)
 axL, axR = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
 for ax in (axL, axR):
@@ -102,7 +110,12 @@ drops = [(n_rec - n_named, 'no RNA-seq\nsample named'),
          (n_named - n_matrix, 'absent from the\nexpression matrix'),
          (n_matrix - n_dose, 'no inhibitor\nover a complete\ndose series'),
          (n_dose - n_lab, 'no induction-\nresponse label')]
-GAP = (0.93 - sum(n.h for n in flow) - 0.16) / 4      # 0.16 keeps room for the two subsets
+sub_w = [Node(axL, f'Held-out wave split\nwaves 1–2 train, {n_train}\n'
+                   f'waves 3–4 test, {n_test}\n−{n_both} in both wave groups', fs=FS_SMALL),
+         Node(axL, f'Clinical models\ncovariates and\nELN 2017 risk, {n_clin}', fs=FS_SMALL)]
+SUB_GAP = 0.055
+reserve = max(n.h for n in sub_w) + SUB_GAP
+GAP = (0.93 - sum(n.h for n in flow) - reserve) / 4
 stack(axL, flow, CXL, 0.93, GAP)
 xe = max(n.w for n in flow) / 2 + CXL + 0.015
 for i, (n, why) in enumerate(drops):
@@ -110,12 +123,12 @@ for i, (n, why) in enumerate(drops):
     arrow(axL, CXL, ymid, xe - 0.004, ymid, ec=CG)
     LABELS.append(axL.text(xe, ymid, f'−{n}  {why}', ha='left', va='center',
                            fontsize=FS_SMALL, color='#555555', linespacing=1.35))
-sub_w = [Node(axL, f'waves\n{n_train} / {n_test}', fs=FS_SMALL),
-         Node(axL, f'covariates\nand ELN, {194}', fs=FS_SMALL)]
-half = max(n.w for n in sub_w) / 2 + 0.012
-for n, dx in zip(sub_w, (-half, half)):
-    n.place(CXL + dx, flow[-1].bottom - 0.055)
-    arrow(axL, CXL + dx, flow[-1].bottom, CXL + dx, n.top - 0.002)
+SGX = 0.024
+pair = sub_w[0].w + SGX + sub_w[1].w
+x0 = max(CXL, pair / 2 + 0.012) - pair / 2        # keep the pair of subsets inside the panel
+for n, cx in zip(sub_w, (x0 + sub_w[0].w / 2, x0 + sub_w[0].w + SGX + sub_w[1].w / 2)):
+    n.place(cx, flow[-1].bottom - SUB_GAP)
+    arrow(axL, CXL, flow[-1].bottom, n.cx, n.top - 0.002)
 
 # ---- panel b: design ------------------------------------------------------------------
 CXR = 0.5
@@ -126,14 +139,15 @@ armA = Node(axR, 'Arm A\ngenes ranked by\nthe accessibility\nof their linked\npe
             fc='#eaf1f6', ec=CA, lw=1.0, fs=FS_B)
 armR = Node(axR, 'Arm R\ngenes ranked by\ntheir own\nexpression\nspecificity',
             fc='#f7edea', ec=CR_, lw=1.0, fs=FS_B)
-model = Node(axR, 'Induction response in the\nsame patients, four penalties,\n'
-                  'identical folds', fs=FS_B)
-evals = Node(axR, 'Difference between the two rules,\n'
-                  'against cross-validation and\n'
-                  'held-out waves, a published stem\n'
-                  'cell gene set, the clinical panel\n'
-                  'and ELN 2017 risk, control sets\n'
-                  'and permuted links', fs=FS_B)
+model = Node(axR, 'Each set scored in the bulk RNA of\n'
+                  'the same patients, identical folds,\n'
+                  'outcome induction response', fs=FS_B)
+evals = Node(axR, 'Evaluation: repeated cross-validation\n'
+                  'and a held-out wave split\n'
+                  'Comparisons: the two rules at four\n'
+                  'penalties, a published stem cell gene\n'
+                  'set, the clinical panel and ELN 2017\n'
+                  'risk, control sets and permuted links', fs=FS_B)
 rows = [refs.h, prog.h, max(armA.h, armR.h), model.h, evals.h]
 GAPR = (0.93 - sum(rows) - 0.035) / 4                 # 0.035 for the italic note
 refs.place(CXR, 0.93)
@@ -147,9 +161,10 @@ arrow(axR, CXR - 0.06, prog.bottom, armA.cx, armA.top - 0.002, ec=CA)
 arrow(axR, CXR + 0.06, prog.bottom, armR.cx, armR.top - 0.002, ec=CR_)
 arms_bottom = min(armA.bottom, armR.bottom)
 model.place(CXR, arms_bottom - 0.035 - GAPR)
-axR.text(CXR, (arms_bottom + model.top) / 2, 'same programme, same pool, same budget',
-         ha='center', va='center', fontsize=FS_SMALL, style='italic', color='#555555',
-         zorder=5, bbox=dict(facecolor='white', edgecolor='none', pad=1.0))
+LABELS.append(axR.text(CXR, (arms_bottom + model.top) / 2,
+                       'same programme, same pool, same budget', ha='center', va='center',
+                       fontsize=FS_SMALL, style='italic', color='#555555', zorder=5,
+                       bbox=dict(facecolor='white', edgecolor='none', pad=1.0)))
 arrow(axR, armA.cx, armA.bottom, CXR - 0.06, model.top - 0.002, ec=CA)
 arrow(axR, armR.cx, armR.bottom, CXR + 0.06, model.top - 0.002, ec=CR_)
 evals.place(CXR, model.bottom - GAPR)
@@ -175,5 +190,6 @@ if out:
 fig.savefig(f'{OUT}/Figure1.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
 print(f'wrote {OUT}/Figure1.png | {n_rec} {n_named} {n_matrix} {n_dose} {n_lab} '
-      f'({n_cr} CR, {n_ref} refractory) | waves {n_train}/{n_test} | '
+      f'({n_cr} CR, {n_ref} refractory) | waves {n_train}/{n_test} (−{n_both}) | '
+      f'clinical {n_clin} | '
       f'widest box {max(n.w for n in flow):.2f} of panel a, {refs.w:.2f} of panel b')
