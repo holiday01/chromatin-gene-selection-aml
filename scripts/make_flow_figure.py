@@ -2,6 +2,9 @@
 
 Every count is read from the cohort flow table and the specimen table rather than written
 here, so the boxes cannot drift from the numbers the Methods and Table 1 report.
+
+Each box is drawn around its text after the text has been measured, so no label can
+outgrow the box it sits in at the size the figure is finally printed.
 """
 import os
 import pandas as pd
@@ -14,6 +17,7 @@ OUT = f'{ROOT}/manuscript/figures'
 os.makedirs(OUT, exist_ok=True)
 plt.rcParams.update({'font.family': 'DejaVu Sans'})
 CA, CR_, CG = '#1b5e8c', '#b4634a', '#8c8c8c'
+FS, FS_SMALL, FS_B = 8.2, 7.4, 7.6
 
 fl = pd.read_csv(f'{ROOT}/results/cohort_flow.csv').set_index('step').n
 spec = pd.read_parquet(f'{ROOT}/data/interim/specimens_dx.parquet')
@@ -27,12 +31,42 @@ n_cr, n_ref = int((resp == 'CR').sum()), int((resp == 'Refractory').sum())
 n_train = int(((spec.cohort == 'Waves1+2') & resp.notna()).sum())
 n_test = int(((spec.cohort == 'Waves3+4') & resp.notna()).sum())
 
+# the saved image is trimmed to its content, so the canvas is drawn larger to land at
+# the 5.8 in the other figures use and the text prints at the size set here
+fig = plt.figure(figsize=(7.1, 5.4))
+gs = fig.add_gridspec(1, 2, width_ratios=[1.18, 1], wspace=0.04)
+axL, axR = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
+for ax in (axL, axR):
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
+REND = fig.canvas.get_renderer()
 
-def box(ax, x, y, w, h, text, fc='white', ec='#444444', lw=.8, fs=6.6, va='center'):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.008,rounding_size=0.015',
-                                linewidth=lw, edgecolor=ec, facecolor=fc, zorder=2))
-    ax.text(x + w / 2, y + h / 2, text, ha='center', va=va, fontsize=fs, zorder=3,
-            linespacing=1.4)
+
+PLACED, LABELS = [], []
+
+
+class Node:
+    """A text label and the box that is fitted around it once it has been measured."""
+
+    def __init__(self, ax, text, fs=FS, fc='white', ec='#444444', lw=.8,
+                 padx=0.030, pady=0.022):
+        self.ax, self.fc, self.ec, self.lw = ax, fc, ec, lw
+        self.padx, self.pady = padx, pady
+        self.t = ax.text(0.5, 0.5, text, ha='center', va='center', fontsize=fs,
+                         linespacing=1.4, zorder=4)
+        bb = self.t.get_window_extent(REND).transformed(ax.transAxes.inverted())
+        self.w, self.h = bb.width + 2 * padx, bb.height + 2 * pady
+
+    def place(self, cx, top):
+        """Put the box with its top edge at `top` and its centre on `cx`."""
+        cy = top - self.h / 2
+        self.t.set_position((cx, cy))
+        self.ax.add_patch(FancyBboxPatch((cx - self.w / 2, cy - self.h / 2), self.w, self.h,
+                                         boxstyle='round,pad=0,rounding_size=0.018',
+                                         linewidth=self.lw, edgecolor=self.ec,
+                                         facecolor=self.fc, zorder=2, clip_on=False))
+        self.cx, self.top, self.bottom = cx, top, top - self.h
+        PLACED.append(self)
+        return self
 
 
 def arrow(ax, x0, y0, x1, y1, ec='#444444'):
@@ -40,84 +74,106 @@ def arrow(ax, x0, y0, x1, y1, ec='#444444'):
                                  linewidth=.8, color=ec, zorder=1, shrinkA=0, shrinkB=0))
 
 
-fig = plt.figure(figsize=(5.8, 4.9))
-gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.92], wspace=0.10)
-axL, axR = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
-for ax in (axL, axR):
-    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
+def stack(ax, nodes, cx, top, gap):
+    """Place nodes top to bottom, joined by arrows."""
+    y = top
+    for i, n in enumerate(nodes):
+        n.place(cx, y)
+        if i:
+            arrow(ax, cx, nodes[i - 1].bottom, n.top - 0.002)if False else None
+        y = n.bottom - gap
+    for a, b in zip(nodes, nodes[1:]):
+        arrow(ax, a.cx, a.bottom, b.cx, b.top - 0.002)
+    return nodes
+
+
 for ax, letter in ((axL, 'a'), (axR, 'b')):
-    ax.text(0.0, 1.015, f'({letter})', fontsize=10, fontweight='bold', va='bottom')
+    ax.text(0.0, 1.0, f'({letter})', fontsize=10, fontweight='bold', va='top', ha='left')
 
 # ---- panel a: specimen flow -----------------------------------------------------------
-X, W = 0.02, 0.50
-steps = [(n_rec, 'Diagnostic records,\nBeat AML waves 1–4'),
-         (n_named, 'Naming an\nRNA-seq sample'),
-         (n_matrix, 'Present in the\nexpression matrix'),
-         (n_dose, 'Analysed specimens\n(Table 1)'),
-         (n_lab, f'Binary induction response\n{n_cr} complete remission,\n{n_ref} refractory')]
+CXL = 0.33
+flow = [Node(axL, f'n = {n_rec}\nDiagnostic records,\nBeat AML waves 1–4'),
+        Node(axL, f'n = {n_named}\nNaming an\nRNA-seq sample'),
+        Node(axL, f'n = {n_matrix}\nPresent in the\nexpression matrix'),
+        Node(axL, f'n = {n_dose}\nAnalysed specimens\n(Table 1)'),
+        Node(axL, f'n = {n_lab}\nBinary induction response\n{n_cr} complete remission,'
+                  f'\n{n_ref} refractory', fc='#eef3f7', ec=CA, lw=1.0)]
 drops = [(n_rec - n_named, 'no RNA-seq\nsample named'),
          (n_named - n_matrix, 'absent from the\nexpression matrix'),
-         (n_matrix - n_dose, 'no inhibitor over a\ncomplete dose series'),
+         (n_matrix - n_dose, 'no inhibitor\nover a complete\ndose series'),
          (n_dose - n_lab, 'no induction-\nresponse label')]
-H, GAP = 0.105, 0.060
-tops = []
-y = 0.95
-for i, (n, lbl) in enumerate(steps):
-    h = H * (1.25 if i == len(steps) - 1 else 1.0)
-    fs = 6.0 if i == len(steps) - 1 else 6.6
-    y -= h
-    last = i == len(steps) - 1
-    box(axL, X, y, W, h, f'n = {n}\n{lbl}', fc='#eef3f7' if last else 'white',
-        ec=CA if last else '#444444', lw=1.0 if last else .8, fs=fs)
-    tops.append((y, h))
-    if not last:
-        y -= GAP
+GAP = (0.93 - sum(n.h for n in flow) - 0.16) / 4      # 0.16 keeps room for the two subsets
+stack(axL, flow, CXL, 0.93, GAP)
+xe = max(n.w for n in flow) / 2 + CXL + 0.015
 for i, (n, why) in enumerate(drops):
-    y_top = tops[i][0]
-    y_next = tops[i + 1][0] + tops[i + 1][1]
-    ymid = (y_top + y_next) / 2
-    arrow(axL, X + W / 2, y_top, X + W / 2, y_next + 0.002)
-    arrow(axL, X + W / 2, ymid, 0.555, ymid, ec=CG)
-    axL.text(0.575, ymid, f'−{n}  {why}', ha='left', va='center', fontsize=6.0,
-             color='#555555', linespacing=1.35)
-y_lab, h_lab = tops[-1]
-yb = y_lab - 0.055 - 0.080
-box(axL, X, yb, W * 0.47, 0.080, f'waves\n{n_train} / {n_test}', fs=6.0)
-box(axL, X + W * 0.53, yb, W * 0.47, 0.080, 'covariates\nand ELN, 194', fs=6.0)
-arrow(axL, X + W * 0.235, y_lab, X + W * 0.235, yb + 0.082)
-arrow(axL, X + W * 0.765, y_lab, X + W * 0.765, yb + 0.082)
+    ymid = (flow[i].bottom + flow[i + 1].top) / 2
+    arrow(axL, CXL, ymid, xe - 0.004, ymid, ec=CG)
+    LABELS.append(axL.text(xe, ymid, f'−{n}  {why}', ha='left', va='center',
+                           fontsize=FS_SMALL, color='#555555', linespacing=1.35))
+sub_w = [Node(axL, f'waves\n{n_train} / {n_test}', fs=FS_SMALL),
+         Node(axL, f'covariates\nand ELN, {194}', fs=FS_SMALL)]
+half = max(n.w for n in sub_w) / 2 + 0.012
+for n, dx in zip(sub_w, (-half, half)):
+    n.place(CXL + dx, flow[-1].bottom - 0.055)
+    arrow(axL, CXL + dx, flow[-1].bottom, CXL + dx, n.top - 0.002)
 
 # ---- panel b: design ------------------------------------------------------------------
-BX, BW = 0.03, 0.94
-box(axR, BX, 0.845, BW, 0.095,
-    'Three single-cell references\nhealthy multiome, AML malignant, AML all cells', fs=6.6)
-box(axR, BX + 0.10, 0.665, BW - 0.20, 0.105,
-    'Haematopoietic stem cell programme\nand its eligible gene pool', fs=6.6)
-arrow(axR, 0.5, 0.845, 0.5, 0.772)
-box(axR, BX, 0.435, 0.44, 0.155,
-    'Arm A\ngenes ranked by\nthe accessibility\nof their linked peaks',
-    fc='#eaf1f6', ec=CA, lw=1.0, fs=6.4)
-box(axR, BX + 0.50, 0.435, 0.44, 0.155,
-    'Arm R\ngenes ranked by\ntheir own\nexpression specificity',
-    fc='#f7edea', ec=CR_, lw=1.0, fs=6.4)
-arrow(axR, 0.40, 0.665, 0.25, 0.593, ec=CA)
-arrow(axR, 0.60, 0.665, 0.75, 0.593, ec=CR_)
-axR.text(0.5, 0.400, 'same programme, same pool, same budget', ha='center', va='center',
-         fontsize=6.0, style='italic', color='#555555', zorder=4,
-         bbox=dict(facecolor='white', edgecolor='none', pad=1.2))
-box(axR, BX + 0.05, 0.260, BW - 0.10, 0.105,
-    'Induction response in the same patients,\nfour penalties, identical folds', fs=6.6)
-arrow(axR, 0.25, 0.435, 0.42, 0.367, ec=CA)
-arrow(axR, 0.75, 0.435, 0.58, 0.367, ec=CR_)
-box(axR, BX, 0.025, BW, 0.195,
-    'Difference between the two rules, against\n'
-    'cross-validation and a held-out wave split\n'
-    'a published leukaemic stem cell gene set\n'
-    'the clinical panel and ELN 2017 risk\n'
-    'control sets and permuted links', fs=6.2)
-arrow(axR, 0.5, 0.260, 0.5, 0.222)
+CXR = 0.5
+refs = Node(axR, 'Three single-cell references\n'
+                 'healthy multiome\nAML malignant cells, AML all cells', fs=FS_B)
+prog = Node(axR, 'Haematopoietic stem cell programme\nand its eligible gene pool', fs=FS_B)
+armA = Node(axR, 'Arm A\ngenes ranked by\nthe accessibility\nof their linked\npeaks',
+            fc='#eaf1f6', ec=CA, lw=1.0, fs=FS_B)
+armR = Node(axR, 'Arm R\ngenes ranked by\ntheir own\nexpression\nspecificity',
+            fc='#f7edea', ec=CR_, lw=1.0, fs=FS_B)
+model = Node(axR, 'Induction response in the\nsame patients, four penalties,\n'
+                  'identical folds', fs=FS_B)
+evals = Node(axR, 'Difference between the two rules,\n'
+                  'against cross-validation and\n'
+                  'held-out waves, a published stem\n'
+                  'cell gene set, the clinical panel\n'
+                  'and ELN 2017 risk, control sets\n'
+                  'and permuted links', fs=FS_B)
+rows = [refs.h, prog.h, max(armA.h, armR.h), model.h, evals.h]
+GAPR = (0.93 - sum(rows) - 0.035) / 4                 # 0.035 for the italic note
+refs.place(CXR, 0.93)
+prog.place(CXR, refs.bottom - GAPR)
+arrow(axR, CXR, refs.bottom, CXR, prog.top - 0.002)
+GX = 0.02
+left = CXR - (armA.w + GX + armR.w) / 2
+armA.place(left + armA.w / 2, prog.bottom - GAPR)
+armR.place(left + armA.w + GX + armR.w / 2, prog.bottom - GAPR)
+arrow(axR, CXR - 0.06, prog.bottom, armA.cx, armA.top - 0.002, ec=CA)
+arrow(axR, CXR + 0.06, prog.bottom, armR.cx, armR.top - 0.002, ec=CR_)
+arms_bottom = min(armA.bottom, armR.bottom)
+model.place(CXR, arms_bottom - 0.035 - GAPR)
+axR.text(CXR, (arms_bottom + model.top) / 2, 'same programme, same pool, same budget',
+         ha='center', va='center', fontsize=FS_SMALL, style='italic', color='#555555',
+         zorder=5, bbox=dict(facecolor='white', edgecolor='none', pad=1.0))
+arrow(axR, armA.cx, armA.bottom, CXR - 0.06, model.top - 0.002, ec=CA)
+arrow(axR, armR.cx, armR.bottom, CXR + 0.06, model.top - 0.002, ec=CR_)
+evals.place(CXR, model.bottom - GAPR)
+arrow(axR, CXR, model.bottom, CXR, evals.top - 0.002)
+
+fig.canvas.draw()
+out = []
+for nd in PLACED:
+    x0, x1 = nd.cx - nd.w / 2, nd.cx + nd.w / 2
+    if x0 < -0.005 or x1 > 1.005 or nd.bottom < -0.005 or nd.top > 1.005:
+        out.append(f'box [{x0:.3f},{x1:.3f}]x[{nd.bottom:.3f},{nd.top:.3f}] '
+                   f'{nd.t.get_text().splitlines()[0]!r}')
+for lb in LABELS:
+    bb = lb.get_window_extent(REND).transformed(lb.axes.transAxes.inverted())
+    if bb.x0 < -0.005 or bb.x1 > 1.005:
+        out.append(f'label [{bb.x0:.3f},{bb.x1:.3f}] {lb.get_text().splitlines()[0]!r}')
+if out:
+    print('CONTENT OUTSIDE ITS PANEL:')
+    for o in out:
+        print('  ', o)
+    raise SystemExit(1)
 
 fig.savefig(f'{OUT}/Figure1.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
 print(f'wrote {OUT}/Figure1.png | {n_rec} {n_named} {n_matrix} {n_dose} {n_lab} '
-      f'({n_cr} CR, {n_ref} refractory) | waves {n_train}/{n_test}')
+      f'({n_cr} CR, {n_ref} refractory) | waves {n_train}/{n_test} | '
+      f'widest box {max(n.w for n in flow):.2f} of panel a, {refs.w:.2f} of panel b')
