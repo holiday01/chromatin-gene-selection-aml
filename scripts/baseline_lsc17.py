@@ -5,20 +5,20 @@ LSC17 is the right comparator: a leukaemic-stem-cell expression signature built 
 response to induction therapy in AML from bulk RNA -- same endpoint, same compartment, same
 input as our claim.
 
-!! PROVISIONAL GENE LIST !!  The 17 symbols below are written from memory and were NOT
-verified against Ng et al. 2016. All 17 resolve in the Beat AML matrix under the
-microarray-era symbols the signature was defined with (KIAA0125, C19orf77, NGFRAP1, GPR56),
-which is consistent but is not verification. Check against the Nature supplementary
-(doi:10.1038/nature20598) before this number goes in a manuscript.
+The 17 symbols are read from data/ref/published_signatures/ng2016_resolution_map.csv, which
+transcribes the Signature Gene column of Ng et al.'s Extended Data Table 1 and carries each
+row's Entrez id, so membership comes from the paper rather than from a retyped list. Four of
+them reach the Beat AML matrix under the microarray-era symbols the signature was defined
+with (KIAA0125, C19orf77, NGFRAP1, GPR56); the map records that resolution.
 
-The published score is a weighted sum with gene-specific coefficients that are only in that
-supplementary, so this script does NOT reproduce the published score. It compares LSC17 as a
+The published score is a weighted sum with gene-specific coefficients that are not in the
+Extended Data Tables, so this script does not reproduce the published score. It compares LSC17 as a
 GENE SET through the identical model and folds as every other arm, which is the comparison
 the paper's thesis actually calls for: same classifier, same patients, same folds, only the
 gene-selection rule differs. Add the weighted score as a separate arm once the coefficients
 are in hand.
 """
-import os, sys, json
+import os, sys, json, csv
 for v in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):
     os.environ[v] = '1'
 import numpy as np, pandas as pd, warnings
@@ -30,8 +30,10 @@ warnings.filterwarnings('ignore')
 ROOT = '/home/holiday01/2026_cm'
 NPZ = sys.argv[1] if len(sys.argv) > 1 else f'{ROOT}/data/programs/programs.npz'
 C_GRID = [1e-2, 1e-1]
-LSC17 = ['DNMT3B','ZBTB46','NYNRIN','ARHGAP22','LAPTM4B','MMRN1','DPYSL3','KIAA0125','CDK6',
-         'CPXM1','SOCS2','C19orf77','EMP1','NGFRAP1','CD34','AKR1C3','GPR56']
+MAP = f'{ROOT}/data/ref/published_signatures/ng2016_resolution_map.csv'
+with open(MAP) as fh:
+    LSC17 = [r['beataml'] for r in csv.DictReader(fh) if r['signature'].startswith('LSC17')]
+assert len(LSC17) == 17, f'{MAP} gives {len(LSC17)} LSC17 members, expected 17'
 
 pr = np.load(NPZ, allow_pickle=True)
 W_A, W_R, pgenes = pr['W_A'], pr['W_R'], pr['genes'].astype(str)
@@ -138,8 +140,8 @@ for C in C_GRID:
     a = res['LSC17 (published gene set)'][0][C]
     w = sum(1 for k in rk if (a - res[k][0][C]).mean() > 0 and wilcoxon(a - res[k][0][C]).pvalue < 0.05)
     print(f'  C={C:g}  LSC17 {a.mean():.3f} vs {cvm[C]:.3f}+/-{cvs_[C]:.3f} (beats {w}/20)')
-json.dump({'note': 'PROVISIONAL LSC17 gene list, unverified against Ng 2016; gene set only, '
-                   'published weights not applied',
+json.dump({'note': 'LSC17 membership read from the Ng 2016 resolution map (Extended Data '
+                   'Table 1, checked by Entrez id); gene set only, published weights not applied',
            'lsc17_used': lsc, 'hsc_A_top17': hscA17, 'hsc_R_top17': hscR17,
            'cv': {n: {str(C): float(v.mean()) for C, v in res[n][0].items()} for n in res},
            'xwave': {n: {str(C): float(v) for C, v in res[n][1].items()} for n in res}},
