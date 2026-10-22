@@ -692,8 +692,8 @@ claim('methods.md',
       r'Clinical covariate models used the ' + _N + r' patients with complete age',
       _CC['clinical_complete_cases'], label='methods clinical n')
 claim('methods.md',
-      r'criteria \(' + _N + r' complete remission, ' + _N + r' refractory; ' + _N +
-      r' favourable, ' + _N + r' intermediate, ' + _N + r' adverse\)',
+      r'not reassigned here \(' + _N + r' complete remission, ' + _N + r' refractory; ' +
+      _N + r' favourable, ' + _N + r' intermediate, ' + _N + r' adverse\)',
       _CC['clinical_cr'], _CC['clinical_refractory'], _CC['clinical_eln_favourable'],
       _CC['clinical_eln_intermediate'], _CC['clinical_eln_adverse'],
       label='methods clinical composition')
