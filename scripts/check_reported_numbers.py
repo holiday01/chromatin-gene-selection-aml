@@ -574,13 +574,10 @@ claim('abstract_v3.md', r'by \+' + _N + r' to \+' + _N + r' in the area under',
 claim('abstract_v3.md', r'in ten of twelve held-out comparisons, from ' + _N + r' to \+' + _N,
       _a.xwave_diff.min(), _a.xwave_diff.max(), label='abstract xwave range')
 claim('abstract_v3.md',
-      r'arm A reached AUROC ' + _N + r' and arm R ' + _N + r' against ' + _N +
-      r' for the\s*published set \(\*P\* = ' + _N + r' and ' + _N + r' against that set\)',
+      r'arm A reached ' + _N + r' and arm R ' + _N + r' against its ' + _N,
       L['cv']['HSC arm A top-99 (chromatin)']['0.01'],
       L['cv']['HSC arm R top-99 (RNA)']['0.01'],
-      L['cv']['Ng2016 LSC genes (published, experimental)']['0.01'],
-      P('armA_99 vs published_LSC', 0.01, 'nb_p'),
-      P('armR_99 vs published_LSC', 0.01, 'nb_p'), label='abstract 99-gene')
+      L['cv']['Ng2016 LSC genes (published, experimental)']['0.01'], label='abstract 99-gene')
 claim('abstract_v3.md',
       r'arm A added \+' + _N + r' AUROC \(\*P\* = ' + _N + r'\)',
       C_('standard panel + chromatin - standard panel', 0.01),
