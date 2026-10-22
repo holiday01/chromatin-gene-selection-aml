@@ -46,7 +46,8 @@ LOOSE_TEX = (TEX, '"with the corrected resampled t-test"', '"corrected resampled
 LOOSE_DOC = (DOC, '"with the corrected resampled t-test"', '"corrected resampled t-test"')
 # braces are grouping characters and a backtick is a left quote in LaTeX, so the converter
 # has to escape the one and convert the other before any command braces are inserted
-CODESPAN = (TEX, "    t=re.sub(r'`([^`]+)`', r'\\\\texttt{\\1}', t)    # a backtick is a left quote in LaTeX",
+CODESPAN = (TEX, """    t=re.sub(r'`([^`]+)`',
+             lambda m: r'\\texttt{%s}' % m.group(1).replace('_', r'\\_\\allowbreak{}'), t)""",
             '    pass')
 
 
@@ -129,7 +130,8 @@ if __name__ == '__main__':
     print('\nconversions checked on the output rather than by the guard')
     _, _, tex = run(TEX, read='manuscript.tex')
     for frag, why in ((r'\{0.001, 0.01, 0.1, 1\}', 'the penalty set keeps its braces'),
-                      (r'\texttt{beataml\_waves1to4', 'the file name is set as monospace')):
+                      (r'\texttt{beataml\_\allowbreak{}waves1to4',
+                       'the file name is monospace and may wrap at its underscores')):
         hit = frag in tex
         ok &= hit
         print(f'  [{"ok     " if hit else "MISSING"}] {why}')
